@@ -94,7 +94,34 @@ curl -X POST http://localhost:8080/api/orders \
 
 # 3. El pago fallará aleatoriamente (~30%); el pedido se creará igual
 #    con estado PAGADO o PAGO_PENDIENTE según el circuit breaker.
+
+# 4. Si el pedido quedó PAGO_PENDIENTE, reintenta el pago:
+curl -X POST http://localhost:8080/api/orders/1/pay
 ```
+
+### Estados de pedido y de pago
+
+Cada dominio define su propio vocabulario, sin mezclar conceptos:
+
+| Dominio | Enum | Valores | Dónde |
+|---|---|---|---|
+| Pedido | `OrderStatus` | `CREADO`, `PAGADO`, `PAGO_PENDIENTE` | `order-service` (fuente única) y `notification-service` |
+| Pago (servidor) | `PaymentStatus` | `APPROVED`, `REJECTED` | `payment-service` |
+| Resultado del pago (cliente) | `PaymentStatus` | `APPROVED`, `UNAVAILABLE` | `order-service` (copia local del contrato) |
+
+`order-service` decide con el booleano `success`; el `status` de pago nunca contiene estados de pedido. En `notification-service` el campo `status` está tipado con el enum `OrderStatus`.
+
+### Pagar un pedido pendiente
+
+`POST /api/orders/{id}/pay` reintenta el cobro de un pedido que quedó en `PAGO_PENDIENTE`:
+
+```bash
+curl -X POST http://localhost:8080/api/orders/1/pay
+```
+
+- `200 OK` → el pedido pasa a `PAGADO` si el pago se aprueba, o permanece `PAGO_PENDIENTE` si el cobro falla o el circuito está abierto (reintenta con el mismo circuit breaker `paymentService`).
+- `409 Conflict` → el pedido existe pero no está en `PAGO_PENDIENTE` (p.ej. ya está `PAGADO`).
+- `404 Not Found` → el pedido no existe.
 
 ## Probar el Circuit Breaker
 
@@ -212,3 +239,5 @@ Se corrige fijando `eureka.instance.hostname` al mismo host del `defaultZone`:
 - La notificación es una llamada síncrona vía Feign (migrar a Kafka/RabbitMQ en el futuro).
 - Se excluye `commons-logging` (transitivo de `jersey-apache-connector` vía Eureka) del starter de Eureka en todos los servicios, ya que Spring usa `spring-jcl`; y se añade `com.github.ben-manes.caffeine:caffeine` para que Spring Cloud LoadBalancer use la caché Caffeine. Ambos cambios eliminan warnings benignos del arranque.
 - La self-preservation de Eureka está deshabilitada (`eureka.server.enable-self-preservation: false`) por tratarse de un entorno de desarrollo/demo de un solo nodo. Así el registro expira las instancias caídas en lugar de mostrar el banner `EMERGENCY! ... RENEWALS ARE LESSER THAN THRESHOLD` durante reinicios o arranques masivos.
+- Los estados están homologados por dominio (`OrderStatus` para pedidos, `PaymentStatus` para pagos). El `PaymentResponse` local de `order-service` ya no usa un estado de pedido (`PAGO_PENDIENTE`) para representar un pago; su fallback ahora es `UNAVAILABLE`. En `payment-service` se eliminó el factory `PaymentResponse.failed()` (código muerto: los fallos se propagan como HTTP 502 vía `PaymentProcessingException` para que el circuit breaker de Feign los cuente).
+- El pago de un pedido pendiente se reintenta con `POST /api/orders/{id}/pay`, que valida el estado en `order-service` (dueño del estado) y responde `409 Conflict` si el pedido no está en `PAGO_PENDIENTE`. La validación no vive en `payment-service` (es stateless) para evitar una dependencia cíclica `payment -> order`.

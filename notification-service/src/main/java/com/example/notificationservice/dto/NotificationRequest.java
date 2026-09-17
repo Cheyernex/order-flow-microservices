@@ -12,8 +12,8 @@ public record NotificationRequest(
         @NotBlank(message = "customerName is required")
         String customerName,
 
-        @NotBlank(message = "status is required")
-        String status,
+        @NotNull(message = "status is required")
+        OrderStatus status,
 
         @NotBlank(message = "message is required")
         String message) {

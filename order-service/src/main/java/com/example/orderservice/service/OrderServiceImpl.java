@@ -9,7 +9,9 @@ import com.example.orderservice.dto.PaymentResponse;
 import com.example.orderservice.dto.ProductValidation;
 import com.example.orderservice.entity.Order;
 import com.example.orderservice.entity.OrderItem;
+import com.example.orderservice.entity.OrderStatus;
 import com.example.orderservice.exception.InsufficientStockException;
+import com.example.orderservice.exception.OrderNotPayableException;
 import com.example.orderservice.exception.ResourceNotFoundException;
 import com.example.orderservice.feign.CatalogClient;
 import com.example.orderservice.feign.NotificationClient;
@@ -82,6 +84,33 @@ public class OrderServiceImpl implements OrderService {
         } else {
             order.markPendingPayment();
             log.warn("Order {} will be left as PAGO_PENDIENTE: {}",
+                    order.getId(), payment.message());
+        }
+        orderRepository.save(order);
+
+        notifyCustomer(order);
+        return OrderResponse.from(order);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse payOrder(Long id) {
+        Order order = orderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Order with id " + id + " not found"));
+
+        if (order.getStatus() != OrderStatus.PAGO_PENDIENTE) {
+            throw new OrderNotPayableException(
+                    "Order " + id + " cannot be paid because its status is " + order.getStatus());
+        }
+
+        PaymentResponse payment = paymentProcessor.process(
+                new PaymentRequest(order.getId(), order.getTotal()));
+
+        if (payment.success()) {
+            order.markPaid();
+        } else {
+            log.warn("Payment retry for order {} did not succeed: {}",
                     order.getId(), payment.message());
         }
         orderRepository.save(order);

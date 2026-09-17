@@ -27,6 +27,6 @@ public class PaymentProcessor {
     public PaymentResponse paymentFallback(PaymentRequest request, Throwable throwable) {
         log.warn("Payment service unavailable or circuit breaker OPEN (orderId={}, cause={}). "
                 + "Falling back to PAGO_PENDIENTE.", request.orderId(), throwable.getClass().getSimpleName());
-        return PaymentResponse.pending();
+        return PaymentResponse.unavailable();
     }
 }

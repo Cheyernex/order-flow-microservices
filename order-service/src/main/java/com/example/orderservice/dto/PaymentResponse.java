@@ -1,16 +1,18 @@
 package com.example.orderservice.dto;
 
 public record PaymentResponse(
-        String status,
+        PaymentStatus status,
         boolean success,
         String message) {
 
     public static PaymentResponse approved() {
-        return new PaymentResponse("APPROVED", true, "Payment processed successfully");
+        return new PaymentResponse(
+                PaymentStatus.APPROVED, true, "Payment processed successfully");
     }
 
-    public static PaymentResponse pending() {
-        return new PaymentResponse("PAGO_PENDIENTE", false,
+    public static PaymentResponse unavailable() {
+        return new PaymentResponse(
+                PaymentStatus.UNAVAILABLE, false,
                 "Payment service unavailable, order kept with pending payment");
     }
 }
