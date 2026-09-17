@@ -78,9 +78,11 @@ public class OrderServiceImpl implements OrderService {
 
         if (payment.success()) {
             order.markPaid();
+            order.setPaidAmount(total);
             order.setPaymentReference(payment.reference());
         } else {
             order.markPendingPayment();
+            order.setPaidAmount(BigDecimal.ZERO);
             log.warn("Order {} will be left as PAGO_PENDIENTE: {}",
                     order.getId(), payment.message());
         }
@@ -112,26 +114,37 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Order with id " + id + " not found"));
 
-        if (order.getStatus() != OrderStatus.PAGO_PENDIENTE) {
-            if (order.getStatus() == OrderStatus.PAGADO) {
-                return OrderResponse.from(order);
-            }
-            throw new OrderNotPayableException(
-                    "Order " + id + " cannot be confirmed as paid because its status is "
-                            + order.getStatus());
+        if (order.getStatus() == OrderStatus.PAGADO) {
+            return OrderResponse.from(order);
         }
 
-        if (amount != null && order.getTotal().compareTo(amount) != 0) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new InvalidPaymentAmountException("Payment amount must be greater than zero");
+        }
+
+        BigDecimal currentPaid = order.getPaidAmount();
+        BigDecimal remaining = order.getRemainingBalance();
+
+        if (amount.compareTo(remaining) > 0) {
             throw new InvalidPaymentAmountException(
-                    "Payment amount (" + amount + ") does not match order total (" + order.getTotal() + ")");
+                    "Payment amount (" + amount + ") exceeds remaining balance (" + remaining + ") for order " + id);
         }
 
-        order.markPaid();
+        BigDecimal newPaid = currentPaid.add(amount);
+        order.setPaidAmount(newPaid);
         order.setPaymentReference(reference);
-        orderRepository.save(order);
-        log.info("Order {} confirmed as PAGADO by payment-service (reference {}, amount {})",
-                order.getId(), reference, amount);
 
+        if (newPaid.compareTo(order.getTotal()) >= 0) {
+            order.markPaid();
+            log.info("Order {} confirmed as PAGADO by payment-service (reference {}, amount {}, total paid {})",
+                    order.getId(), reference, amount, newPaid);
+        } else {
+            order.markPartialPayment();
+            log.info("Order {} marked as PAGO_PARCIAL by payment-service (reference {}, amount {}, total paid {}, remaining {})",
+                    order.getId(), reference, amount, newPaid, order.getRemainingBalance());
+        }
+
+        orderRepository.save(order);
         notifyCustomer(order);
         return OrderResponse.from(order);
     }
@@ -146,7 +159,8 @@ public class OrderServiceImpl implements OrderService {
 
     private void notifyCustomer(Order order) {
         String statusMessage = switch (order.getStatus()) {
-            case PAGADO -> "Payment approved. Order confirmed.";
+            case PAGADO -> "Payment approved. Order fully confirmed and paid.";
+            case PAGO_PARCIAL -> "Partial payment approved. Remaining balance: " + order.getRemainingBalance();
             case PAGO_PENDIENTE -> "Order created but payment is pending.";
             case CREADO -> "Order created.";
         };

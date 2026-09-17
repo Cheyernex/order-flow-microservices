@@ -1,15 +1,19 @@
 package com.example.paymentservice.service;
 
 import com.example.paymentservice.config.PaymentSimulationProperties;
+import com.example.paymentservice.dto.OrderSummaryResponse;
 import com.example.paymentservice.dto.PaymentDetailResponse;
 import com.example.paymentservice.dto.PaymentRequest;
 import com.example.paymentservice.dto.PaymentResponse;
 import com.example.paymentservice.dto.PaymentStatus;
 import com.example.paymentservice.entity.Payment;
+import com.example.paymentservice.exception.InvalidPaymentAmountException;
 import com.example.paymentservice.exception.OrderAlreadyPaidException;
 import com.example.paymentservice.exception.PaymentNotFoundException;
 import com.example.paymentservice.exception.PaymentProcessingException;
+import com.example.paymentservice.feign.OrderClient;
 import com.example.paymentservice.repository.PaymentRepository;
+import feign.FeignException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -27,22 +31,41 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentReferenceGenerator referenceGenerator;
     private final PaymentSimulationProperties simulation;
     private final OrderConfirmer orderConfirmer;
+    private final OrderClient orderClient;
 
     public PaymentServiceImpl(PaymentRepository paymentRepository,
                               PaymentReferenceGenerator referenceGenerator,
                               PaymentSimulationProperties simulation,
-                              OrderConfirmer orderConfirmer) {
+                              OrderConfirmer orderConfirmer,
+                              OrderClient orderClient) {
         this.paymentRepository = paymentRepository;
         this.referenceGenerator = referenceGenerator;
         this.simulation = simulation;
         this.orderConfirmer = orderConfirmer;
+        this.orderClient = orderClient;
     }
 
     @Override
     public PaymentResponse process(PaymentRequest request) {
-        if (paymentRepository.existsByOrderIdAndStatus(request.orderId(), PaymentStatus.APPROVED)) {
-            throw new OrderAlreadyPaidException(
-                    "Order " + request.orderId() + " has already been paid");
+        // Pre-validate against order status and remaining balance
+        try {
+            OrderSummaryResponse order = orderClient.getOrder(request.orderId());
+            if (order != null) {
+                if ("PAGADO".equalsIgnoreCase(order.status())) {
+                    throw new OrderAlreadyPaidException(
+                            "Order " + request.orderId() + " has already been fully paid");
+                }
+                if (order.remainingBalance() != null && request.amount().compareTo(order.remainingBalance()) > 0) {
+                    throw new InvalidPaymentAmountException(
+                            "Payment amount (" + request.amount() + ") exceeds remaining balance (" + order.remainingBalance() + ") for order " + request.orderId());
+                }
+            }
+        } catch (FeignException.NotFound ex) {
+            throw new PaymentNotFoundException("Order with id " + request.orderId() + " not found");
+        } catch (OrderAlreadyPaidException | InvalidPaymentAmountException | PaymentNotFoundException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.warn("Could not reach order-service to pre-validate order {}: {}", request.orderId(), ex.getMessage());
         }
 
         simulateLatency();

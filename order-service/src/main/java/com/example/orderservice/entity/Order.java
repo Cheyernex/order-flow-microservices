@@ -32,6 +32,9 @@ public class Order {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal total = BigDecimal.ZERO;
 
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal paidAmount = BigDecimal.ZERO;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private OrderStatus status = OrderStatus.CREADO;
@@ -58,8 +61,26 @@ public class Order {
         this.total = total;
     }
 
+    public void setPaidAmount(BigDecimal paidAmount) {
+        this.paidAmount = paidAmount;
+    }
+
+    public BigDecimal getPaidAmount() {
+        return paidAmount != null ? paidAmount : BigDecimal.ZERO;
+    }
+
+    public BigDecimal getRemainingBalance() {
+        BigDecimal paid = getPaidAmount();
+        BigDecimal balance = total.subtract(paid);
+        return balance.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : balance;
+    }
+
     public void markPaid() {
         this.status = OrderStatus.PAGADO;
+    }
+
+    public void markPartialPayment() {
+        this.status = OrderStatus.PAGO_PARCIAL;
     }
 
     public void markPendingPayment() {

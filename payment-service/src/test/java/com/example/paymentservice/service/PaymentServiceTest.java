@@ -1,11 +1,14 @@
 package com.example.paymentservice.service;
 
 import com.example.paymentservice.config.PaymentSimulationProperties;
+import com.example.paymentservice.dto.OrderSummaryResponse;
 import com.example.paymentservice.dto.PaymentConfirmationRequest;
 import com.example.paymentservice.dto.PaymentDetailResponse;
 import com.example.paymentservice.dto.PaymentRequest;
 import com.example.paymentservice.dto.PaymentResponse;
 import com.example.paymentservice.dto.PaymentStatus;
+import com.example.paymentservice.exception.InvalidPaymentAmountException;
+import com.example.paymentservice.exception.OrderAlreadyPaidException;
 import com.example.paymentservice.exception.PaymentNotFoundException;
 import com.example.paymentservice.exception.PaymentProcessingException;
 import com.example.paymentservice.feign.OrderClient;
@@ -28,6 +31,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -144,12 +148,37 @@ class PaymentServiceTest {
 
     @Test
     void shouldRejectPaymentWhenOrderAlreadyPaid() {
-        paymentService.process(new PaymentRequest(50L, new BigDecimal("500.00")));
+        when(orderClient.getOrder(50L)).thenReturn(new OrderSummaryResponse(
+                50L, "User", new BigDecimal("500.00"), new BigDecimal("500.00"), BigDecimal.ZERO, "PAGADO"));
 
         assertThatThrownBy(() ->
                 paymentService.process(new PaymentRequest(50L, new BigDecimal("500.00"))))
-                .isInstanceOf(com.example.paymentservice.exception.OrderAlreadyPaidException.class)
-                .hasMessageContaining("Order 50 has already been paid");
+                .isInstanceOf(OrderAlreadyPaidException.class)
+                .hasMessageContaining("Order 50 has already been fully paid");
+    }
+
+    @Test
+    void shouldRejectPaymentWhenAmountExceedsRemainingBalance() {
+        when(orderClient.getOrder(70L)).thenReturn(new OrderSummaryResponse(
+                70L, "User", new BigDecimal("1000.00"), new BigDecimal("700.00"), new BigDecimal("300.00"), "PAGO_PARCIAL"));
+
+        assertThatThrownBy(() ->
+                paymentService.process(new PaymentRequest(70L, new BigDecimal("500.00"))))
+                .isInstanceOf(InvalidPaymentAmountException.class)
+                .hasMessageContaining("exceeds remaining balance");
+    }
+
+    @Test
+    void shouldSupportMultiplePartialPayments() {
+        when(orderClient.getOrder(60L)).thenReturn(new OrderSummaryResponse(
+                60L, "User", new BigDecimal("8000.00"), new BigDecimal("4000.00"), new BigDecimal("4000.00"), "PAGO_PARCIAL"));
+
+        PaymentResponse response = paymentService.process(new PaymentRequest(60L, new BigDecimal("4000.00")));
+
+        assertThat(response.success()).isTrue();
+        assertThat(response.status()).isEqualTo(PaymentStatus.APPROVED);
+        verify(orderClient).confirmPayment(eq(60L), argThat(req ->
+                req.reference().equals(response.reference()) && req.amount().compareTo(new BigDecimal("4000.00")) == 0));
     }
 
     private void tuneSimulation(double failureRate) {

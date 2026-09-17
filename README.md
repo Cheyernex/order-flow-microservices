@@ -123,25 +123,30 @@ Cada dominio define su propio vocabulario, sin mezclar conceptos:
 
 | Dominio | Enum | Valores | Dónde |
 |---|---|---|---|
-| Pedido | `OrderStatus` | `CREADO`, `PAGADO`, `PAGO_PENDIENTE` | `order-service` (fuente única) y `notification-service` |
+| Pedido | `OrderStatus` | `CREADO`, `PAGADO`, `PAGO_PENDIENTE`, `PAGO_PARCIAL` | `order-service` (fuente única) y `notification-service` |
 | Pago (servidor) | `PaymentStatus` | `APPROVED`, `REJECTED` | `payment-service` |
 | Resultado del pago (cliente) | `PaymentStatus` | `APPROVED`, `UNAVAILABLE` | `order-service` (copia local del contrato) |
 
 `order-service` decide con el booleano `success`; el `status` de pago nunca contiene estados de pedido. En `notification-service` el campo `status` está tipado con el enum `OrderStatus`.
 
-### Pagar un pedido pendiente
+### Pagos de pedidos (Abonos y Pagos Parciales)
 
-Para pagar un pedido `PAGO_PENDIENTE` se llama directamente a la API de pagos con su `orderId` y su `amount` (el total que devuelve el pedido):
+El sistema soporta **pagos completos y pagos parciales (abonos acumulativos)** hasta liquidar el 100% de la orden:
+
+- Cada pedido contiene su `total`, el monto acumulado pagado `paidAmount` y el saldo restante `remainingBalance`.
+- Cuando se realiza un abono inferior al total (ej. $4,000 a una orden de $8,000), el pedido pasa a estado **`PAGO_PARCIAL`** con saldo restante de $4,000.
+- Al realizar el pago restante ($4,000), el pedido pasa automáticamente a **`PAGADO`** y su saldo restante queda en $0.00.
 
 ```bash
 curl -X POST http://localhost:8080/payments/process \
   -H "Content-Type: application/json" \
-  -d '{"orderId":1,"amount":3000.00}'
+  -d '{"orderId":1,"amount":4000.00}'
 ```
 
-- `200 OK` → el pago se aprueba: `payment-service` procesa y persiste la `reference` de forma autónoma en su base de datos, y **confirma la orden** vía el endpoint interno `POST /internal/orders/{id}/payment-confirmation`. `order-service` valida que la orden esté pendiente y que el monto cubra el total (`order.total`), marcándola `PAGADO` con su `paymentReference`.
-- `409 Conflict` → la orden ya cuenta con un pago aprobado previo (`urn:problem-type:order-already-paid`).
-- `502 Bad Gateway` → el cobro fue rechazado por la pasarela (simulado ~30%): se persiste `REJECTED`, la respuesta incluye la `reference` del intento y la orden sigue `PAGO_PENDIENTE`, lista para reintentar.
+- `200 OK` → el pago se procesa y persiste la `reference` en `paymentdb`. Notifica a `order-service`, el cual actualiza el acumulado `paidAmount`, calcula el `remainingBalance` y cambia el estado a `PAGO_PARCIAL` o `PAGADO`.
+- `400 Bad Request` → el monto a pagar excede el saldo restante (`remainingBalance`) de la orden.
+- `409 Conflict` → la orden ya se encuentra totalmente pagada (`PAGADO`).
+- `502 Bad Gateway` → el cobro fue rechazado por la pasarela (simulado ~30%): se persiste `REJECTED` con su `reference` y la orden mantiene su saldo y estado actual, lista para reintentar.
 
 Los pagos se solicitan a través del API Gateway hacia `payment-service` (`POST /payments/process`). Si `order-service` estuviera caído durante la confirmación, el circuit breaker de `payment-service` asegura que el cobro quede registrado sin perder persistencia.
 

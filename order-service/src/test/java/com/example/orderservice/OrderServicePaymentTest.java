@@ -180,15 +180,38 @@ class OrderServicePaymentTest {
     }
 
     @Test
-    void shouldRejectConfirmWhenAmountMismatches() {
+    void shouldSupportPartialPaymentsUntilFullyPaid() {
+        stubPaymentServiceFailure();
+
+        OrderResponse pending = orderService.createOrder(validOrderRequest());
+        assertThat(pending.status()).isEqualTo(OrderStatus.PAGO_PENDIENTE);
+        assertThat(pending.total()).isEqualByComparingTo(new BigDecimal("3000.00"));
+        assertThat(pending.paidAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(pending.remainingBalance()).isEqualByComparingTo(new BigDecimal("3000.00"));
+
+        // Primer abono parcial de 1000.00
+        OrderResponse partial = orderService.confirmPayment(pending.id(), "ref-part-1", new BigDecimal("1000.00"));
+        assertThat(partial.status()).isEqualTo(OrderStatus.PAGO_PARCIAL);
+        assertThat(partial.paidAmount()).isEqualByComparingTo(new BigDecimal("1000.00"));
+        assertThat(partial.remainingBalance()).isEqualByComparingTo(new BigDecimal("2000.00"));
+
+        // Segundo abono de 2000.00 que completa el total
+        OrderResponse completed = orderService.confirmPayment(pending.id(), "ref-part-2", new BigDecimal("2000.00"));
+        assertThat(completed.status()).isEqualTo(OrderStatus.PAGADO);
+        assertThat(completed.paidAmount()).isEqualByComparingTo(new BigDecimal("3000.00"));
+        assertThat(completed.remainingBalance()).isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    @Test
+    void shouldRejectConfirmWhenAmountExceedsRemainingBalance() {
         stubPaymentServiceFailure();
 
         OrderResponse pending = orderService.createOrder(validOrderRequest());
 
         assertThatThrownBy(() ->
-                orderService.confirmPayment(pending.id(), "ref12345", new BigDecimal("50.00")))
+                orderService.confirmPayment(pending.id(), "ref12345", new BigDecimal("3500.00")))
                 .isInstanceOf(com.example.orderservice.exception.InvalidPaymentAmountException.class)
-                .hasMessageContaining("Payment amount (50.00) does not match order total (3000.00)");
+                .hasMessageContaining("Payment amount (3500.00) exceeds remaining balance (3000.00)");
     }
 
     private void stubPaymentServiceFailure() {
