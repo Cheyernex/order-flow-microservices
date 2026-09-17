@@ -3,6 +3,7 @@ package com.example.catalogservice.controller;
 import com.example.catalogservice.dto.ProductRequest;
 import com.example.catalogservice.dto.ProductResponse;
 import com.example.catalogservice.service.ProductService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -19,6 +20,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/products")
+@Tag(name = "Catálogo de Productos", description = "Gestión del catálogo de productos")
 public class ProductController {
 
     private final ProductService productService;
