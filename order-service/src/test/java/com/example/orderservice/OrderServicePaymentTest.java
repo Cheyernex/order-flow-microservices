@@ -11,6 +11,8 @@ import com.example.orderservice.feign.CatalogClient;
 import com.example.orderservice.feign.NotificationClient;
 import com.example.orderservice.service.OrderService;
 import com.github.tomakehurst.wiremock.WireMockServer;
+import feign.FeignException;
+import feign.Request;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import org.junit.jupiter.api.AfterEach;
@@ -22,7 +24,9 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
@@ -134,6 +138,21 @@ class OrderServicePaymentTest {
                 .isInstanceOf(ResourceNotFoundException.class);
 
         WIREMOCK.verify(0, postRequestedFor(urlEqualTo("/payments/process")));
+    }
+
+    @Test
+    void shouldReturnNotFoundWhenProductDoesNotExist() {
+        when(catalogClient.getProduct(anyLong())).thenThrow(
+                new FeignException.NotFound(
+                        "Product not found",
+                        Request.create(Request.HttpMethod.GET, "/api/products/999999",
+                                Map.of(), null, StandardCharsets.UTF_8),
+                        null,
+                        Map.of()));
+
+        assertThatThrownBy(() -> orderService.createOrder(validOrderRequest()))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Product with id 1 not found");
     }
 
     private void stubPaymentServiceFailure() {

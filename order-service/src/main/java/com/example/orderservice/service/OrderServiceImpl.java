@@ -16,6 +16,7 @@ import com.example.orderservice.exception.ResourceNotFoundException;
 import com.example.orderservice.feign.CatalogClient;
 import com.example.orderservice.feign.NotificationClient;
 import com.example.orderservice.repository.OrderRepository;
+import feign.FeignException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -52,7 +53,7 @@ public class OrderServiceImpl implements OrderService {
         BigDecimal total = BigDecimal.ZERO;
 
         for (OrderItemRequest item : request.items()) {
-            ProductValidation product = catalogClient.getProduct(item.productId());
+            ProductValidation product = getProductOrThrow(item.productId());
 
             if (product == null) {
                 throw new ResourceNotFoundException(
@@ -117,6 +118,14 @@ public class OrderServiceImpl implements OrderService {
 
         notifyCustomer(order);
         return OrderResponse.from(order);
+    }
+
+    private ProductValidation getProductOrThrow(Long productId) {
+        try {
+            return catalogClient.getProduct(productId);
+        } catch (FeignException.NotFound ex) {
+            throw new ResourceNotFoundException("Product with id " + productId + " not found");
+        }
     }
 
     private void notifyCustomer(Order order) {
