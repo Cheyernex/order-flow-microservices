@@ -11,6 +11,7 @@ import com.example.orderservice.entity.Order;
 import com.example.orderservice.entity.OrderItem;
 import com.example.orderservice.entity.OrderStatus;
 import com.example.orderservice.exception.InsufficientStockException;
+import com.example.orderservice.exception.InvalidPaymentAmountException;
 import com.example.orderservice.exception.OrderNotPayableException;
 import com.example.orderservice.exception.ResourceNotFoundException;
 import com.example.orderservice.feign.CatalogClient;
@@ -19,8 +20,8 @@ import com.example.orderservice.repository.OrderRepository;
 import feign.FeignException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -47,7 +48,6 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Transactional
     public OrderResponse createOrder(OrderRequest request) {
         List<OrderItem> items = new ArrayList<>();
         BigDecimal total = BigDecimal.ZERO;
@@ -55,10 +55,6 @@ public class OrderServiceImpl implements OrderService {
         for (OrderItemRequest item : request.items()) {
             ProductValidation product = getProductOrThrow(item.productId());
 
-            if (product == null) {
-                throw new ResourceNotFoundException(
-                        "Product with id " + item.productId() + " not found");
-            }
             if (product.stock() < item.quantity()) {
                 throw new InsufficientStockException(
                         "Insufficient stock for product '" + product.name()
@@ -75,13 +71,14 @@ public class OrderServiceImpl implements OrderService {
 
         Order order = new Order(request.customerName(), items);
         order.setTotal(total);
-        order = orderRepository.save(order);
+        orderRepository.save(order);
 
         PaymentResponse payment = paymentProcessor.process(
                 new PaymentRequest(order.getId(), order.getTotal()));
 
         if (payment.success()) {
             order.markPaid();
+            order.setPaymentReference(payment.reference());
         } else {
             order.markPendingPayment();
             log.warn("Order {} will be left as PAGO_PENDIENTE: {}",
@@ -94,27 +91,46 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Transactional
-    public OrderResponse payOrder(Long id) {
+    public OrderResponse getOrder(Long id) {
+        return orderRepository.findById(id)
+                .map(OrderResponse::from)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Order with id " + id + " not found"));
+    }
+
+    @Override
+    public List<OrderResponse> listOrders() {
+        return orderRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"))
+                .stream()
+                .map(OrderResponse::from)
+                .toList();
+    }
+
+    @Override
+    public OrderResponse confirmPayment(Long id, String reference, BigDecimal amount) {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Order with id " + id + " not found"));
 
         if (order.getStatus() != OrderStatus.PAGO_PENDIENTE) {
+            if (order.getStatus() == OrderStatus.PAGADO) {
+                return OrderResponse.from(order);
+            }
             throw new OrderNotPayableException(
-                    "Order " + id + " cannot be paid because its status is " + order.getStatus());
+                    "Order " + id + " cannot be confirmed as paid because its status is "
+                            + order.getStatus());
         }
 
-        PaymentResponse payment = paymentProcessor.process(
-                new PaymentRequest(order.getId(), order.getTotal()));
-
-        if (payment.success()) {
-            order.markPaid();
-        } else {
-            log.warn("Payment retry for order {} did not succeed: {}",
-                    order.getId(), payment.message());
+        if (amount != null && order.getTotal().compareTo(amount) != 0) {
+            throw new InvalidPaymentAmountException(
+                    "Payment amount (" + amount + ") does not match order total (" + order.getTotal() + ")");
         }
+
+        order.markPaid();
+        order.setPaymentReference(reference);
         orderRepository.save(order);
+        log.info("Order {} confirmed as PAGADO by payment-service (reference {}, amount {})",
+                order.getId(), reference, amount);
 
         notifyCustomer(order);
         return OrderResponse.from(order);

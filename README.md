@@ -8,9 +8,10 @@ El proyecto simula un flujo de pedidos real:
 
 1. El cliente envía un pedido al **api-gateway** (único punto de entrada).
 2. **order-service** valida productos y stock consultando a **catalog-service**.
-3. **order-service** procesa el pago llamando a **payment-service** (que falla en ~30% de los casos para demostrar resiliencia).
+3. **order-service** procesa el pago llamando a **payment-service**, que persiste cada intento (aprobado o rechazado) con una **referencia única (hash SHA-256)** y falla en ~30% de los casos para demostrar resiliencia. Cuando el pago se aprueba, **payment-service confirma la orden** (la marca `PAGADO` con su `paymentReference`).
 4. Si el pago falla, un **circuit breaker** degrada la respuesta marcando el pedido como `PAGO_PENDIENTE` en vez de devolver un error 500.
-5. Una vez creado, se notifica a **notification-service** (solo log).
+5. Los pedidos se pueden **listar y consultar** (`GET /api/orders`). Un pedido `PAGO_PENDIENTE` se paga llamando directamente a **payment-service** con su `orderId` y `amount` (`POST /payments/process`), el cual valida que la orden exista, no esté pagada y que el monto coincida exactamente con el total; al aprobarse, `payment-service` confirma la orden automáticamente. Los pagos se pueden auditar y listar de forma consolidada (`GET /payments`).
+6. Una vez creado o confirmado, se notifica a **notification-service** (solo log).
 
 Permite demostrar: registro/descubrimiento de servicios, balanceo de carga con `lb://`, resiliencia con circuit breaker, manejo global de errores con `ProblemDetail`, bases de datos segregadas y despliegue completo con Docker Compose.
 
@@ -33,10 +34,12 @@ flowchart LR
 
     Order -->|Feign valida producto/stock| Catalog
     Order -->|Feign procesa pago + CircuitBreaker| Payment
+    Payment -->|Feign confirma pedido + CircuitBreaker| Order
     Order -->|Feign notifica creación| Notif
 
     Catalog -->|JPA| PGC[(PostgreSQL catalog)]
     Order -->|JPA| PGO[(PostgreSQL order)]
+    Payment -->|JPA| PGP[(PostgreSQL payment)]
 ```
 
 ## Instrucciones de ejecución
@@ -44,7 +47,7 @@ flowchart LR
 ### Requisitos previos
 
 - Docker + Docker Compose (v2)
-- Puerto libres: 8080, 8081, 8082, 8083, 8084, 8761, 5433, 5434
+- Puerto libres: 8080, 8081, 8082, 8083, 8084, 8761, 5433, 5434, 5435
 
 ### Clonar y levantar
 
@@ -64,7 +67,7 @@ La primera compilación puede tardar varios minutos (descarga de dependencias Ma
 | Eureka Dashboard | http://localhost:8761 |
 | Catalog Service (directo) | http://localhost:8081/api/products |
 | Order Service (directo) | http://localhost:8082/api/orders |
-| Payment Service (directo) | http://localhost:8083 |
+| Payment Service (directo) | http://localhost:8083/payments |
 | Notification Service (directo) | http://localhost:8084 |
 | Healthchecks (Actuator) | http://localhost:<puerto>/actuator/health |
 
@@ -93,10 +96,25 @@ curl -X POST http://localhost:8080/api/orders \
   -d '{"customerName":"Ana Pérez","items":[{"productId":1,"quantity":2}]}'
 
 # 3. El pago fallará aleatoriamente (~30%); el pedido se creará igual
-#    con estado PAGADO o PAGO_PENDIENTE según el circuit breaker.
+#    con estado PAGADO o PAGO_PENDIENTE, según el circuit breaker.
 
-# 4. Si el pedido quedó PAGO_PENDIENTE, reintenta el pago:
-curl -X POST http://localhost:8080/api/orders/1/pay
+# 4. Lista los pedidos para saber cuáles quedaron PAGO_PENDIENTE:
+curl http://localhost:8080/api/orders
+
+# 5. Paga un pedido directamente en payment-service
+#    (usa el id y el total del pedido de la lista):
+curl -X POST http://localhost:8080/payments/process \
+  -H "Content-Type: application/json" \
+  -d '{"orderId":1,"amount":3000.00}'
+
+# 6. Verifica que el pedido quedó PAGADO con paymentReference:
+curl http://localhost:8080/api/orders/1
+
+# 7. Consulta la lista completa de pagos registrados (con sus estados y detalles):
+curl http://localhost:8080/payments
+
+# 8. Consulta el detalle de un pago puntual por su referencia:
+curl http://localhost:8080/payments/<paymentReference>
 ```
 
 ### Estados de pedido y de pago
@@ -113,19 +131,46 @@ Cada dominio define su propio vocabulario, sin mezclar conceptos:
 
 ### Pagar un pedido pendiente
 
-`POST /api/orders/{id}/pay` reintenta el cobro de un pedido que quedó en `PAGO_PENDIENTE`:
+Para pagar un pedido `PAGO_PENDIENTE` se llama directamente a la API de pagos con su `orderId` y su `amount` (el total que devuelve el pedido):
 
 ```bash
-curl -X POST http://localhost:8080/api/orders/1/pay
+curl -X POST http://localhost:8080/payments/process \
+  -H "Content-Type: application/json" \
+  -d '{"orderId":1,"amount":3000.00}'
 ```
 
-- `200 OK` → el pedido pasa a `PAGADO` si el pago se aprueba, o permanece `PAGO_PENDIENTE` si el cobro falla o el circuito está abierto (reintenta con el mismo circuit breaker `paymentService`).
-- `409 Conflict` → el pedido existe pero no está en `PAGO_PENDIENTE` (p.ej. ya está `PAGADO`).
-- `404 Not Found` → el pedido no existe.
+- `200 OK` → el pago se aprueba: `payment-service` procesa y persiste la `reference` de forma autónoma en su base de datos, y **confirma la orden** vía el endpoint interno `POST /internal/orders/{id}/payment-confirmation`. `order-service` valida que la orden esté pendiente y que el monto cubra el total (`order.total`), marcándola `PAGADO` con su `paymentReference`.
+- `409 Conflict` → la orden ya cuenta con un pago aprobado previo (`urn:problem-type:order-already-paid`).
+- `502 Bad Gateway` → el cobro fue rechazado por la pasarela (simulado ~30%): se persiste `REJECTED`, la respuesta incluye la `reference` del intento y la orden sigue `PAGO_PENDIENTE`, lista para reintentar.
+
+Los pagos se solicitan a través del API Gateway hacia `payment-service` (`POST /payments/process`). Si `order-service` estuviera caído durante la confirmación, el circuit breaker de `payment-service` asegura que el cobro quede registrado sin perder persistencia.
+
+### Consultar listado y detalle de pagos
+
+- **Listar el estado más reciente de cada orden pagada o rechazada:**
+  ```bash
+  curl http://localhost:8080/payments
+  ```
+  Devuelve el último estado de pago consolidado por orden (`APPROVED` o `REJECTED`), si fue exitoso (`success`), el mensaje del gateway, `orderId`, monto (`amount`), referencia única y fecha (`createdAt`). Si una orden falló y luego se pagó con éxito, mostrará únicamente su estado `APPROVED`.
+
+- **Consultar un pago puntual por referencia:**
+  Cada intento de pago se persiste con un hash **SHA-256** único (64 caracteres hex):
+  ```bash
+  curl http://localhost:8080/payments/<paymentReference>
+  ```
+  Si la referencia no existe → `404 Not Found` (`urn:problem-type:payment-not-found`).
+
+- `POST /payments/process` (llamada directa para pruebas) devuelve `reference` en el `200`; cuando el cobro falla, el `502` también incluye la `reference`, de modo que incluso el intento rechazado queda consultable en el listado y por referencia.
+- La respuesta del pedido incluye `paymentReference` con la referencia del pago aprobado, lo que permite correlacionar pedido ↔ pago.
 
 ## Probar el Circuit Breaker
 
-El circuit breaker de `order-service` (name: `paymentService`) está configurado para:
+Hay dos circuit breakers con la misma configuración:
+
+- `order-service` → name `paymentService`: protege la llamada de cobro al crear un pedido.
+- `payment-service` → name `orderService`: protege la confirmación de la orden tras un pago aprobado.
+
+Configuración (idéntica en ambos):
 
 - `slidingWindowSize: 10` (evalúa las últimas 10 llamadas)
 - `failureRateThreshold: 50%` (abre si >= 50% de llamadas fallan)
@@ -240,5 +285,9 @@ Se corrige fijando `eureka.instance.hostname` al mismo host del `defaultZone`:
 - Se excluye `commons-logging` (transitivo de `jersey-apache-connector` vía Eureka) del starter de Eureka en todos los servicios, ya que Spring usa `spring-jcl`; y se añade `com.github.ben-manes.caffeine:caffeine` para que Spring Cloud LoadBalancer use la caché Caffeine. Ambos cambios eliminan warnings benignos del arranque.
 - La self-preservation de Eureka está deshabilitada (`eureka.server.enable-self-preservation: false`) por tratarse de un entorno de desarrollo/demo de un solo nodo. Así el registro expira las instancias caídas en lugar de mostrar el banner `EMERGENCY! ... RENEWALS ARE LESSER THAN THRESHOLD` durante reinicios o arranques masivos.
 - Los estados están homologados por dominio (`OrderStatus` para pedidos, `PaymentStatus` para pagos). El `PaymentResponse` local de `order-service` ya no usa un estado de pedido (`PAGO_PENDIENTE`) para representar un pago; su fallback ahora es `UNAVAILABLE`. En `payment-service` se eliminó el factory `PaymentResponse.failed()` (código muerto: los fallos se propagan como HTTP 502 vía `PaymentProcessingException` para que el circuit breaker de Feign los cuente).
-- El pago de un pedido pendiente se reintenta con `POST /api/orders/{id}/pay`, que valida el estado en `order-service` (dueño del estado) y responde `409 Conflict` si el pedido no está en `PAGO_PENDIENTE`. La validación no vive en `payment-service` (es stateless) para evitar una dependencia cíclica `payment -> order`.
-- Al crear un pedido con un `productId` inexistente, `order-service` traduce el `FeignException.NotFound` de `catalog-service` a un `404 Not Found` (en vez de propagarlo como `502 Bad Gateway`); el pago no llega a ejecutarse. Cuando el pago falla, el pedido se crea igual con estado `PAGO_PENDIENTE` y puede reintentarse con `/pay`.
+- Los pagos se solicitan directamente a `payment-service` vía `POST /payments/process` a través del API Gateway. `payment-service` opera de forma completamente autónoma: procesa el cobro y lo persiste en `paymentdb`. Si se aprueba, notifica a `order-service` vía `POST /internal/orders/{id}/payment-confirmation`, donde `order-service` valida en su propio dominio que el monto pagado cubra el total adeudado para marcar la orden `PAGADO`. Si `order-service` no estuviera disponible, el Circuit Breaker de `payment-service` previene la caída del servicio y mantiene el pago registrado.
+- `GET /payments` expone la lista consolidada de pagos mostrando únicamente el estado más reciente por cada orden (`findLatestPerOrder`). Si un pedido tuvo uno o más intentos `REJECTED` y luego se aprueba (`APPROVED`), en el listado aparecerá únicamente con su estado final `APPROVED`.
+- Al crear un pedido con un `productId` inexistente, `order-service` traduce el `FeignException.NotFound` de `catalog-service` a un `404 Not Found` (en vez de propagarlo como `502 Bad Gateway`); el pago no llega a ejecutarse. Cuando el pago falla, el pedido se crea igual con estado `PAGO_PENDIENTE` y puede pagarse después con `POST /payments/process`.
+- Cada intento de pago se persiste en su propia base PostgreSQL (`postgres-payment` / `paymentdb`, puerto host 5435), segregada de las de catálogo y pedidos. La referencia de búsqueda es un hash **SHA-256** único por intento (`orderId + monto + timestamp + UUID`).
+- Los intentos rechazados también se guardan (`PaymentStatus.REJECTED`). El fallo se sigue propagando como `502 Bad Gateway` para que el circuit breaker de Feign lo cuente, pero el `ProblemDetail` incluye la `reference` para poder auditar el intento.
+- La simulación de `payment-service` es configurable por propiedades: `payment.simulation.failure-rate` (por defecto `0.30`), `min-latency-ms` y `max-latency-ms`.

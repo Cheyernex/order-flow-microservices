@@ -12,6 +12,7 @@ public record OrderResponse(
         String customerName,
         BigDecimal total,
         OrderStatus status,
+        String paymentReference,
         Instant createdAt,
         List<OrderItemResponse> items) {
 
@@ -21,6 +22,7 @@ public record OrderResponse(
                 order.getCustomerName(),
                 order.getTotal(),
                 order.getStatus(),
+                order.getPaymentReference(),
                 order.getCreatedAt(),
                 order.getItems().stream()
                         .map(item -> new OrderItemResponse(

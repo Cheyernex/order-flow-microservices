@@ -39,6 +39,9 @@ public class Order {
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
 
+    @Column(length = 64)
+    private String paymentReference;
+
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @JoinColumn(name = "order_id")
     private List<OrderItem> items = new ArrayList<>();
@@ -63,6 +66,10 @@ public class Order {
         this.status = OrderStatus.PAGO_PENDIENTE;
     }
 
+    public void setPaymentReference(String paymentReference) {
+        this.paymentReference = paymentReference;
+    }
+
     public Long getId() {
         return id;
     }
@@ -81,6 +88,10 @@ public class Order {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public String getPaymentReference() {
+        return paymentReference;
     }
 
     public List<OrderItem> getItems() {

@@ -19,6 +19,27 @@ public class GlobalExceptionHandler {
                 HttpStatus.BAD_GATEWAY, ex.getMessage());
         problemDetail.setTitle("Payment processing failed");
         problemDetail.setType(URI.create("urn:problem-type:payment-failed"));
+        if (ex.getReference() != null) {
+            problemDetail.setProperty("reference", ex.getReference());
+        }
+        return problemDetail;
+    }
+
+    @ExceptionHandler(PaymentNotFoundException.class)
+    public ProblemDetail handlePaymentNotFound(PaymentNotFoundException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND, ex.getMessage());
+        problemDetail.setTitle("Payment not found");
+        problemDetail.setType(URI.create("urn:problem-type:payment-not-found"));
+        return problemDetail;
+    }
+
+    @ExceptionHandler(OrderAlreadyPaidException.class)
+    public ProblemDetail handleOrderAlreadyPaid(OrderAlreadyPaidException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT, ex.getMessage());
+        problemDetail.setTitle("Order already paid");
+        problemDetail.setType(URI.create("urn:problem-type:order-already-paid"));
         return problemDetail;
     }
 

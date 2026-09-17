@@ -38,6 +38,25 @@ services:
     networks:
       - order-system
 
+  postgres-payment:
+    image: postgres:16-alpine
+    container_name: postgres-payment
+    environment:
+      POSTGRES_DB: paymentdb
+      POSTGRES_USER: payment_user
+      POSTGRES_PASSWORD: ${PAYMENT_DB_PASSWORD:-payment_pass}
+    volumes:
+      - pg-payment-data:/var/lib/postgresql/data
+    ports:
+      - "5435:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payment_user -d paymentdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - order-system
+
   eureka-server:
     build:
       context: ./eureka-server
@@ -135,8 +154,13 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: docker
       EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-payment:5432/paymentdb
+      SPRING_DATASOURCE_USERNAME: payment_user
+      SPRING_DATASOURCE_PASSWORD: ${PAYMENT_DB_PASSWORD:-payment_pass}
     depends_on:
       eureka-server:
+        condition: service_healthy
+      postgres-payment:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8083/actuator/health || exit 1"]
@@ -173,6 +197,7 @@ services:
 volumes:
   pg-catalog-data:
   pg-order-data:
+  pg-payment-data:
 
 networks:
   order-system:

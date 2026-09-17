@@ -5,7 +5,6 @@ import com.example.orderservice.dto.OrderRequest;
 import com.example.orderservice.dto.OrderResponse;
 import com.example.orderservice.dto.ProductValidation;
 import com.example.orderservice.entity.OrderStatus;
-import com.example.orderservice.exception.OrderNotPayableException;
 import com.example.orderservice.exception.ResourceNotFoundException;
 import com.example.orderservice.feign.CatalogClient;
 import com.example.orderservice.feign.NotificationClient;
@@ -99,45 +98,8 @@ class OrderServicePaymentTest {
 
         assertThat(order.status()).isEqualTo(OrderStatus.PAGADO);
         assertThat(order.total()).isEqualByComparingTo(new BigDecimal("3000.00"));
+        assertThat(order.paymentReference()).isEqualTo("a1b2c3d4");
         WIREMOCK.verify(1, postRequestedFor(urlEqualTo("/payments/process")));
-    }
-
-    @Test
-    void shouldMarkPendingOrderAsPaidWhenRetrySucceeds() {
-        stubPaymentServiceFailure();
-
-        OrderResponse pending = orderService.createOrder(validOrderRequest());
-        assertThat(pending.status()).isEqualTo(OrderStatus.PAGO_PENDIENTE);
-
-        WIREMOCK.resetAll();
-        stubPaymentServiceApproved();
-
-        OrderResponse paid = orderService.payOrder(pending.id());
-
-        assertThat(paid.status()).isEqualTo(OrderStatus.PAGADO);
-        assertThat(paid.id()).isEqualTo(pending.id());
-    }
-
-    @Test
-    void shouldRejectPayingOrderThatIsAlreadyPaid() {
-        stubPaymentServiceApproved();
-
-        OrderResponse paid = orderService.createOrder(validOrderRequest());
-        assertThat(paid.status()).isEqualTo(OrderStatus.PAGADO);
-
-        assertThatThrownBy(() -> orderService.payOrder(paid.id()))
-                .isInstanceOf(OrderNotPayableException.class)
-                .hasMessageContaining("PAGADO");
-
-        WIREMOCK.verify(1, postRequestedFor(urlEqualTo("/payments/process")));
-    }
-
-    @Test
-    void shouldRejectPayingUnknownOrder() {
-        assertThatThrownBy(() -> orderService.payOrder(999_999L))
-                .isInstanceOf(ResourceNotFoundException.class);
-
-        WIREMOCK.verify(0, postRequestedFor(urlEqualTo("/payments/process")));
     }
 
     @Test
@@ -155,6 +117,80 @@ class OrderServicePaymentTest {
                 .hasMessageContaining("Product with id 1 not found");
     }
 
+    @Test
+    void shouldListAllOrders() {
+        stubPaymentServiceApproved();
+        OrderResponse paid = orderService.createOrder(validOrderRequest());
+
+        WIREMOCK.resetAll();
+        stubPaymentServiceFailure();
+        OrderResponse pending = orderService.createOrder(validOrderRequest());
+        assertThat(pending.status()).isEqualTo(OrderStatus.PAGO_PENDIENTE);
+
+        List<OrderResponse> all = orderService.listOrders();
+
+        assertThat(all).isNotEmpty();
+        assertThat(all).extracting(OrderResponse::id)
+                .contains(paid.id(), pending.id());
+        assertThat(all).extracting(OrderResponse::status)
+                .contains(OrderStatus.PAGADO, OrderStatus.PAGO_PENDIENTE);
+    }
+
+    @Test
+    void shouldGetOrderById() {
+        stubPaymentServiceApproved();
+
+        OrderResponse created = orderService.createOrder(validOrderRequest());
+
+        OrderResponse found = orderService.getOrder(created.id());
+
+        assertThat(found.id()).isEqualTo(created.id());
+        assertThat(found.status()).isEqualTo(OrderStatus.PAGADO);
+    }
+
+    @Test
+    void shouldReturnNotFoundForUnknownOrder() {
+        assertThatThrownBy(() -> orderService.getOrder(999_999L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void shouldConfirmPendingOrderAsPaid() {
+        stubPaymentServiceFailure();
+
+        OrderResponse pending = orderService.createOrder(validOrderRequest());
+        assertThat(pending.status()).isEqualTo(OrderStatus.PAGO_PENDIENTE);
+        assertThat(pending.paymentReference()).isNull();
+
+        OrderResponse confirmed = orderService.confirmPayment(pending.id(), "ref12345", pending.total());
+
+        assertThat(confirmed.status()).isEqualTo(OrderStatus.PAGADO);
+        assertThat(confirmed.paymentReference()).isEqualTo("ref12345");
+    }
+
+    @Test
+    void shouldBeIdempotentWhenConfirmingPaidOrder() {
+        stubPaymentServiceApproved();
+
+        OrderResponse paid = orderService.createOrder(validOrderRequest());
+
+        OrderResponse again = orderService.confirmPayment(paid.id(), "another-ref", paid.total());
+
+        assertThat(again.status()).isEqualTo(OrderStatus.PAGADO);
+    }
+
+    @Test
+    void shouldRejectConfirmWhenAmountMismatches() {
+        stubPaymentServiceFailure();
+
+        OrderResponse pending = orderService.createOrder(validOrderRequest());
+
+        assertThatThrownBy(() ->
+                orderService.confirmPayment(pending.id(), "ref12345", new BigDecimal("50.00")))
+                .isInstanceOf(com.example.orderservice.exception.InvalidPaymentAmountException.class)
+                .hasMessageContaining("Payment amount (50.00) does not match order total (3000.00)");
+    }
+
     private void stubPaymentServiceFailure() {
         WIREMOCK.stubFor(post(urlEqualTo("/payments/process"))
                 .willReturn(aResponse()
@@ -168,7 +204,8 @@ class OrderServicePaymentTest {
                 .willReturn(aResponse()
                         .withStatus(200)
                         .withHeader("Content-Type", "application/json")
-                        .withBody("{\"status\":\"APPROVED\",\"success\":true,\"message\":\"ok\"}")));
+                        .withBody("{\"status\":\"APPROVED\",\"success\":true,\"message\":\"ok\","
+                                + "\"reference\":\"a1b2c3d4\"}")));
     }
 
     private OrderRequest validOrderRequest() {

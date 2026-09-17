@@ -3,9 +3,11 @@ package com.example.orderservice.exception;
 import feign.FeignException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.net.URI;
 import java.util.LinkedHashMap;
@@ -41,6 +43,15 @@ public class GlobalExceptionHandler {
         return problemDetail;
     }
 
+    @ExceptionHandler(InvalidPaymentAmountException.class)
+    public ProblemDetail handleInvalidPaymentAmount(InvalidPaymentAmountException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT, ex.getMessage());
+        problemDetail.setTitle("Payment amount mismatch");
+        problemDetail.setType(URI.create("urn:problem-type:payment-amount-mismatch"));
+        return problemDetail;
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleValidation(MethodArgumentNotValidException ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
@@ -62,6 +73,24 @@ public class GlobalExceptionHandler {
                 "Upstream service returned error: " + ex.getMessage());
         problemDetail.setTitle("Upstream service error");
         problemDetail.setType(URI.create("urn:problem-type:upstream-error"));
+        return problemDetail;
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ProblemDetail handleNoResource(NoResourceFoundException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND, "Resource not found: " + ex.getResourcePath());
+        problemDetail.setTitle("Resource not found");
+        problemDetail.setType(URI.create("urn:problem-type:resource-not-found"));
+        return problemDetail;
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ProblemDetail handleMethodNotAllowed(HttpRequestMethodNotSupportedException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.METHOD_NOT_ALLOWED, ex.getMessage());
+        problemDetail.setTitle("Method not allowed");
+        problemDetail.setType(URI.create("urn:problem-type:method-not-allowed"));
         return problemDetail;
     }
 
