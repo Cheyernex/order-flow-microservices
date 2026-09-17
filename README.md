@@ -194,8 +194,20 @@ cd ../order-service
 ```
 (Si usas `mvn` local, reemplaza `./mvnw` por `mvn`.)
 
+## Troubleshooting
+
+### `eureka-server`: `SocketTimeoutException: Read timed out` en `ReplicationTaskProcessor`
+
+Eureka interpreta cada URL de `eureka.client.service-url.defaultZone` como un nodo peer. Si el host de esa URL no coincide con `eureka.instance.hostname` (en Docker el hostname por defecto es el ID del contenedor, p.ej. `5b4c6f8f8ec3`), no reconoce la URL como propia, la trata como un peer y se replica a sí mismo hasta agotar el timeout de lectura.
+
+Se corrige fijando `eureka.instance.hostname` al mismo host del `defaultZone`:
+
+- `application.yml` (local): `eureka.instance.hostname: localhost`
+- `application-docker.yml` (Docker): `eureka.instance.hostname: eureka-server`
+
 ## Notas
 
 - El `payment-service` falla intencionalmente el ~30% de las veces y simula latencia de 200-800ms.
 - Las credenciales de base de datos se transmiten vía variables de entorno; los valores por defecto solo existen en el entorno Docker de demostración.
 - La notificación es una llamada síncrona vía Feign (migrar a Kafka/RabbitMQ en el futuro).
+- Se excluye `commons-logging` (transitivo de `jersey-apache-connector` vía Eureka) del starter de Eureka en todos los servicios, ya que Spring usa `spring-jcl`; y se añade `com.github.ben-manes.caffeine:caffeine` para que Spring Cloud LoadBalancer use la caché Caffeine. Ambos cambios eliminan warnings benignos del arranque.
