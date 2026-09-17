@@ -68,6 +68,17 @@ La primera compilación puede tardar varios minutos (descarga de dependencias Ma
 | Notification Service (directo) | http://localhost:8084 |
 | Healthchecks (Actuator) | http://localhost:<puerto>/actuator/health |
 
+### Documentación de API (Swagger UI)
+
+Los servicios REST exponen su contrato OpenAPI (springdoc-openapi). UI interactiva en `/swagger-ui/index.html` y JSON en `/v3/api-docs`:
+
+| Servicio | Swagger UI | OpenAPI JSON |
+|---|---|---|
+| Catalog Service | http://localhost:8081/swagger-ui/index.html | http://localhost:8081/v3/api-docs |
+| Order Service | http://localhost:8082/swagger-ui/index.html | http://localhost:8082/v3/api-docs |
+| Payment Service | http://localhost:8083/swagger-ui/index.html | http://localhost:8083/v3/api-docs |
+| Notification Service | http://localhost:8084/swagger-ui/index.html | http://localhost:8084/v3/api-docs |
+
 ### Probar el flujo
 
 ```bash
@@ -147,6 +158,7 @@ curl http://localhost:8082/actuator/metrics/resilience4j.circuitbreaker.state
 | Bean Validation | (Spring Boot) | Validación de payloads con `@NotNull`, `@Positive` |
 | Resilience4j | 2.x | Circuit Breaker + métricas Micrometer |
 | ProblemDetail (Spring 6) | (Spring Boot) | Manejo global de errores estructurados |
+| springdoc-openapi | 2.6.0 | Documentación OpenAPI / Swagger UI de los servicios REST |
 | Docker | Compose v2 | Contenedores multi-stage + orquestación local |
 | Testcontainers | 1.x | Test de integración con PostgreSQL real |
 | WireMock | 3.x | Simulación de fallas de payment-service en tests |
