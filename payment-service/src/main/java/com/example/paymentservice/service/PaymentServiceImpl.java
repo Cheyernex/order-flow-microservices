@@ -32,17 +32,20 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentSimulationProperties simulation;
     private final OrderConfirmer orderConfirmer;
     private final OrderClient orderClient;
+    private final com.example.paymentservice.publisher.PaymentEventPublisher paymentEventPublisher;
 
     public PaymentServiceImpl(PaymentRepository paymentRepository,
                               PaymentReferenceGenerator referenceGenerator,
                               PaymentSimulationProperties simulation,
                               OrderConfirmer orderConfirmer,
-                              OrderClient orderClient) {
+                              OrderClient orderClient,
+                              com.example.paymentservice.publisher.PaymentEventPublisher paymentEventPublisher) {
         this.paymentRepository = paymentRepository;
         this.referenceGenerator = referenceGenerator;
         this.simulation = simulation;
         this.orderConfirmer = orderConfirmer;
         this.orderClient = orderClient;
+        this.paymentEventPublisher = paymentEventPublisher;
     }
 
     @Override
@@ -82,6 +85,15 @@ public class PaymentServiceImpl implements PaymentService {
         paymentRepository.save(payment);
         log.info("Payment {} for order {} (amount {}) recorded as {}",
                 reference, request.orderId(), request.amount(), status);
+
+        paymentEventPublisher.publishPaymentProcessed(new com.example.paymentservice.event.PaymentProcessedEvent(
+                reference,
+                request.orderId(),
+                request.amount(),
+                status,
+                message,
+                Instant.now()
+        ));
 
         if (!success) {
             throw new PaymentProcessingException(message, reference);

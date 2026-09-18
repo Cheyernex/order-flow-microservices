@@ -49,6 +49,9 @@ class PaymentServiceTest {
     @MockBean
     private OrderClient orderClient;
 
+    @MockBean
+    private com.example.paymentservice.publisher.PaymentEventPublisher paymentEventPublisher;
+
     @BeforeEach
     void setUp() {
         paymentRepository.deleteAll();

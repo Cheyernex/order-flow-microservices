@@ -11,7 +11,10 @@ El proyecto simula un flujo de pedidos real con estándares de arquitectura ente
 3. **order-service** procesa el pago llamando a **payment-service**, que persiste cada intento con un hash único **SHA-256** y simula fallos aleatorios (~30%) para demostrar resiliencia. Si el pago se aprueba, **payment-service confirma la orden** de forma autónoma.
 4. Si el pago inicial falla, un **circuit breaker** degrada la respuesta marcando el pedido como `PAGO_PENDIENTE` en vez de devolver un error 500.
 5. El sistema soporta **abonos y pagos parciales**: la orden lleva la cuenta de `paidAmount` y `remainingBalance`, pasando por estados `PAGO_PENDIENTE` ➔ `PAGO_PARCIAL` ➔ `PAGADO`.
-6. **Arquitectura Orientada a Eventos (EDA)**: Tras crear un pedido o registrar un abono, `order-service` publica de forma asíncrona un evento `OrderNotificationEvent` hacia **RabbitMQ** (`order.exchange`). **notification-service** consume el evento vía `@RabbitListener` sin bloquear al cliente.
+6. **Arquitectura Orientada a Eventos (EDA - RabbitMQ)**: Publicación asíncrona de eventos de dominio consumidos por **notification-service**:
+   - **Producto Creado**: `catalog-service` ➔ `product.exchange` (`product.created`) ➔ `notification-service`.
+   - **Orden Creada / Abono**: `order-service` ➔ `order.exchange` (`order.notification`) ➔ `notification-service`.
+   - **Pago Procesado**: `payment-service` ➔ `payment.exchange` (`payment.processed`) ➔ `notification-service`.
 7. **Trazabilidad Distribuida**: Cada petición genera un `traceId` y `spanId` propagado automáticamente por **Micrometer Tracing**, consultable en tiempo real en **Zipkin Dashboard** (:9411).
 
 ## Diagrama de arquitectura
@@ -35,8 +38,10 @@ flowchart TD
     Order -->|Feign + Circuit Breaker| Payment
     Payment -->|Feign confirma orden + Circuit Breaker| Order
 
-    Order -.->|Publica OrderNotificationEvent| RabbitMQ[(RabbitMQ :5672)]
-    RabbitMQ -.->|AMQP Listener asíncrono| Notif
+    Catalog -.->|Publica ProductCreatedEvent| RabbitMQ[(RabbitMQ :5672)]
+    Order -.->|Publica OrderNotificationEvent| RabbitMQ
+    Payment -.->|Publica PaymentProcessedEvent| RabbitMQ
+    RabbitMQ -.->|AMQP Listeners asíncronos| Notif
 
     Gateway -.->|Spans de Trazabilidad| Zipkin[Zipkin UI :9411]
     Order -.->|Spans de Trazabilidad| Zipkin

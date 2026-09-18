@@ -137,11 +137,14 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-catalog:5432/catalogdb
       SPRING_DATASOURCE_USERNAME: catalog_user
       SPRING_DATASOURCE_PASSWORD: ${CATALOG_DB_PASSWORD:-catalog_pass}
+      SPRING_RABBITMQ_HOST: rabbitmq
       MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
     depends_on:
       eureka-server:
         condition: service_healthy
       postgres-catalog:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       zipkin:
         condition: service_healthy
@@ -198,11 +201,14 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-payment:5432/paymentdb
       SPRING_DATASOURCE_USERNAME: payment_user
       SPRING_DATASOURCE_PASSWORD: ${PAYMENT_DB_PASSWORD:-payment_pass}
+      SPRING_RABBITMQ_HOST: rabbitmq
       MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
     depends_on:
       eureka-server:
         condition: service_healthy
       postgres-payment:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       zipkin:
         condition: service_healthy

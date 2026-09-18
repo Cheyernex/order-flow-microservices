@@ -12,6 +12,11 @@ spring:
     properties:
       hibernate:
         format_sql: true
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:localhost}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:guest}
+    password: ${SPRING_RABBITMQ_PASSWORD:guest}
 
 server:
   port: ${SERVER_PORT:8081}

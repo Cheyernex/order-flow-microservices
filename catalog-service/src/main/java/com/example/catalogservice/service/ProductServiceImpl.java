@@ -14,9 +14,12 @@ import java.util.List;
 public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
+    private final com.example.catalogservice.publisher.ProductEventPublisher eventPublisher;
 
-    public ProductServiceImpl(ProductRepository productRepository) {
+    public ProductServiceImpl(ProductRepository productRepository,
+                              com.example.catalogservice.publisher.ProductEventPublisher eventPublisher) {
         this.productRepository = productRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -37,7 +40,10 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     public ProductResponse create(ProductRequest request) {
         Product product = new Product(request.name(), request.price(), request.stock());
-        return ProductResponse.from(productRepository.save(product));
+        Product saved = productRepository.save(product);
+        eventPublisher.publishProductCreated(new com.example.catalogservice.event.ProductCreatedEvent(
+                saved.getId(), saved.getName(), saved.getPrice(), saved.getStock(), java.time.Instant.now()));
+        return ProductResponse.from(saved);
     }
 
     @Override
