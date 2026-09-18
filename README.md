@@ -4,21 +4,20 @@ Sistema de pedidos basado en microservicios construido con **Java 21 + Spring Bo
 
 ## Descripción y propósito
 
-El proyecto simula un flujo de pedidos real:
+El proyecto simula un flujo de pedidos real con estándares de arquitectura enterprise:
 
-1. El cliente envía un pedido al **api-gateway** (único punto de entrada).
+1. El cliente envía un pedido al **api-gateway** (único punto de entrada :8080).
 2. **order-service** valida productos y stock consultando a **catalog-service**.
-3. **order-service** procesa el pago llamando a **payment-service**, que persiste cada intento (aprobado o rechazado) con una **referencia única (hash SHA-256)** y falla en ~30% de los casos para demostrar resiliencia. Cuando el pago se aprueba, **payment-service confirma la orden** (la marca `PAGADO` con su `paymentReference`).
-4. Si el pago falla, un **circuit breaker** degrada la respuesta marcando el pedido como `PAGO_PENDIENTE` en vez de devolver un error 500.
-5. Los pedidos se pueden **listar y consultar** (`GET /api/orders`). Un pedido `PAGO_PENDIENTE` se paga llamando directamente a **payment-service** con su `orderId` y `amount` (`POST /payments/process`), el cual valida que la orden exista, no esté pagada y que el monto coincida exactamente con el total; al aprobarse, `payment-service` confirma la orden automáticamente. Los pagos se pueden auditar y listar de forma consolidada (`GET /payments`).
-6. Una vez creado o confirmado, se notifica a **notification-service** (solo log).
-
-Permite demostrar: registro/descubrimiento de servicios, balanceo de carga con `lb://`, resiliencia con circuit breaker, manejo global de errores con `ProblemDetail`, bases de datos segregadas y despliegue completo con Docker Compose.
+3. **order-service** procesa el pago llamando a **payment-service**, que persiste cada intento con un hash único **SHA-256** y simula fallos aleatorios (~30%) para demostrar resiliencia. Si el pago se aprueba, **payment-service confirma la orden** de forma autónoma.
+4. Si el pago inicial falla, un **circuit breaker** degrada la respuesta marcando el pedido como `PAGO_PENDIENTE` en vez de devolver un error 500.
+5. El sistema soporta **abonos y pagos parciales**: la orden lleva la cuenta de `paidAmount` y `remainingBalance`, pasando por estados `PAGO_PENDIENTE` ➔ `PAGO_PARCIAL` ➔ `PAGADO`.
+6. **Arquitectura Orientada a Eventos (EDA)**: Tras crear un pedido o registrar un abono, `order-service` publica de forma asíncrona un evento `OrderNotificationEvent` hacia **RabbitMQ** (`order.exchange`). **notification-service** consume el evento vía `@RabbitListener` sin bloquear al cliente.
+7. **Trazabilidad Distribuida**: Cada petición genera un `traceId` y `spanId` propagado automáticamente por **Micrometer Tracing**, consultable en tiempo real en **Zipkin Dashboard** (:9411).
 
 ## Diagrama de arquitectura
 
 ```mermaid
-flowchart LR
+flowchart TD
     Client[Cliente HTTP] -->|:8080| Gateway[API Gateway :8080]
 
     Gateway -->|lb://eureka-server| Eureka[Eureka Server :8761]
@@ -27,15 +26,23 @@ flowchart LR
     Gateway -->|lb://payment-service| Payment[Payment Service :8083]
     Gateway -->|lb://notification-service| Notif[Notification Service :8084]
 
-    Eureka <-->|registro/descubrimiento| Catalog
-    Eureka <-->|registro/descubrimiento| Order
-    Eureka <-->|registro/descubrimiento| Payment
-    Eureka <-->|registro/descubrimiento| Notif
+    Eureka <-->|Service Discovery| Catalog
+    Eureka <-->|Service Discovery| Order
+    Eureka <-->|Service Discovery| Payment
+    Eureka <-->|Service Discovery| Notif
 
-    Order -->|Feign valida producto/stock| Catalog
-    Order -->|Feign procesa pago + CircuitBreaker| Payment
-    Payment -->|Feign confirma pedido + CircuitBreaker| Order
-    Order -->|Feign notifica creación| Notif
+    Order -->|Feign síncrono| Catalog
+    Order -->|Feign + Circuit Breaker| Payment
+    Payment -->|Feign confirma orden + Circuit Breaker| Order
+
+    Order -.->|Publica OrderNotificationEvent| RabbitMQ[(RabbitMQ :5672)]
+    RabbitMQ -.->|AMQP Listener asíncrono| Notif
+
+    Gateway -.->|Spans de Trazabilidad| Zipkin[Zipkin UI :9411]
+    Order -.->|Spans de Trazabilidad| Zipkin
+    Catalog -.->|Spans de Trazabilidad| Zipkin
+    Payment -.->|Spans de Trazabilidad| Zipkin
+    Notif -.->|Spans de Trazabilidad| Zipkin
 
     Catalog -->|JPA| PGC[(PostgreSQL catalog)]
     Order -->|JPA| PGO[(PostgreSQL order)]
@@ -47,7 +54,7 @@ flowchart LR
 ### Requisitos previos
 
 - Docker + Docker Compose (v2)
-- Puerto libres: 8080, 8081, 8082, 8083, 8084, 8761, 5433, 5434, 5435
+- Puertos libres: 8080, 8081, 8082, 8083, 8084, 8761, 9411, 15672, 5672, 5433, 5434, 5435
 
 ### Clonar y levantar
 
@@ -57,19 +64,18 @@ cd order-system-microservices
 docker compose up --build
 ```
 
-La primera compilación puede tardar varios minutos (descarga de dependencias Maven e imágenes base). Los Dockerfiles usan un cache de BuildKit (`--mount=type=cache,target=/root/.m2`), así que los builds siguientes son rápidos y no re-descargan dependencias. Si el build falla con `Unknown host repo.maven.apache.org`, es un problema temporal de DNS de tu red: ejecuta `docker compose build` de nuevo y continuará desde la caché.
+### URLs y Dashboards del Ecosistema
 
-### URLs resultantes
-
-| Servicio | URL |
-|---|---|
-| API Gateway (punto de entrada) | http://localhost:8080 |
-| Eureka Dashboard | http://localhost:8761 |
-| Catalog Service (directo) | http://localhost:8081/api/products |
-| Order Service (directo) | http://localhost:8082/api/orders |
-| Payment Service (directo) | http://localhost:8083/payments |
-| Notification Service (directo) | http://localhost:8084 |
-| Healthchecks (Actuator) | http://localhost:<puerto>/actuator/health |
+| Componente | URL | Descripción |
+|---|---|---|
+| **API Gateway** | http://localhost:8080 | Único punto de entrada para clientes |
+| **Zipkin Tracing UI** | http://localhost:9411 | Trazabilidad distribuida y análisis de latencia |
+| **RabbitMQ Management** | http://localhost:15672 | Panel de colas y exchanges (`guest`/`guest`) |
+| **Eureka Dashboard** | http://localhost:8761 | Registro y estado de microservicios |
+| **Catalog Service** | http://localhost:8081/swagger-ui/index.html | Swagger UI Catálogo de Productos |
+| **Order Service** | http://localhost:8082/swagger-ui/index.html | Swagger UI Gestión de Pedidos |
+| **Payment Service** | http://localhost:8083/swagger-ui/index.html | Swagger UI Pasarela de Pagos |
+| **Notification Service** | http://localhost:8084/swagger-ui/index.html | Swagger UI Notificaciones |
 
 ### Documentación de API (Swagger UI)
 
@@ -167,6 +173,33 @@ Los pagos se solicitan a través del API Gateway hacia `payment-service` (`POST 
 
 - `POST /payments/process` (llamada directa para pruebas) devuelve `reference` en el `200`; cuando el cobro falla, el `502` también incluye la `reference`, de modo que incluso el intento rechazado queda consultable en el listado y por referencia.
 - La respuesta del pedido incluye `paymentReference` con la referencia del pago aprobado, lo que permite correlacionar pedido ↔ pago.
+
+## Trazabilidad Distribuida (Zipkin)
+
+Cada solicitud que ingresa por el `api-gateway` recibe automáticamente un **`traceId`** y **`spanId`** generado por Micrometer Tracing y propagado a través de los encabezados HTTP (B3 / W3C TraceContext) hacia todos los microservicios downstream.
+
+- **Visualizar trazas en Zipkin UI**:
+  Abre en tu navegador: **http://localhost:9411**
+- Haz clic en **"Run Query"** para ver las últimas peticiones.
+- Al seleccionar una traza, verás el árbol de spans distribuido:
+  ```text
+  [api-gateway] ----------> :8080 (Total: 120ms)
+    └── [order-service] ---> POST /api/orders (115ms)
+          ├── [catalog-service] -> GET /api/products/1 (12ms)
+          └── [payment-service] -> POST /payments/process (95ms)
+  ```
+- Los logs de todos los microservicios incluyen el formato `[service-name,traceId,spanId]`, lo que permite buscar un `traceId` en los logs centralizados y encontrar toda la historia de una petición.
+
+## Arquitectura Orientada a Eventos (RabbitMQ)
+
+Las notificaciones hacia los clientes están completamente desacopladas del ciclo síncrono HTTP:
+
+- **Publicación**: Al crear una orden o registrar un abono, `order-service` emite un evento `OrderNotificationEvent` hacia el exchange `order.exchange`.
+- **Consumo Asíncrono**: `notification-service` escucha en la cola `order.notification.queue` mediante `@RabbitListener` y procesa la notificación de manera no bloqueante.
+- **RabbitMQ Dashboard**:
+  Ingresa a **http://localhost:15672** (Usuario: `guest`, Contraseña: `guest`):
+  - En la pestaña **Exchanges** verás `order.exchange`.
+  - En la pestaña **Queues** verás `order.notification.queue` con la tasa de mensajes entrantes y consumidos en tiempo real.
 
 ## Probar el Circuit Breaker
 

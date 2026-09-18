@@ -60,7 +60,7 @@ class OrderServicePaymentTest {
     private CatalogClient catalogClient;
 
     @MockBean
-    private NotificationClient notificationClient;
+    private com.example.orderservice.publisher.OrderEventPublisher eventPublisher;
 
     @BeforeEach
     void setUp() {

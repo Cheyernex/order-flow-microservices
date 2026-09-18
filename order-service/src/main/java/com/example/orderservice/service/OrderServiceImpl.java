@@ -15,7 +15,8 @@ import com.example.orderservice.exception.InvalidPaymentAmountException;
 import com.example.orderservice.exception.OrderNotPayableException;
 import com.example.orderservice.exception.ResourceNotFoundException;
 import com.example.orderservice.feign.CatalogClient;
-import com.example.orderservice.feign.NotificationClient;
+import com.example.orderservice.event.OrderNotificationEvent;
+import com.example.orderservice.publisher.OrderEventPublisher;
 import com.example.orderservice.repository.OrderRepository;
 import feign.FeignException;
 import org.slf4j.Logger;
@@ -24,6 +25,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -35,16 +37,16 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final CatalogClient catalogClient;
     private final PaymentProcessor paymentProcessor;
-    private final NotificationClient notificationClient;
+    private final OrderEventPublisher eventPublisher;
 
     public OrderServiceImpl(OrderRepository orderRepository,
                             CatalogClient catalogClient,
                             PaymentProcessor paymentProcessor,
-                            NotificationClient notificationClient) {
+                            OrderEventPublisher eventPublisher) {
         this.orderRepository = orderRepository;
         this.catalogClient = catalogClient;
         this.paymentProcessor = paymentProcessor;
-        this.notificationClient = notificationClient;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -164,15 +166,15 @@ public class OrderServiceImpl implements OrderService {
             case PAGO_PENDIENTE -> "Order created but payment is pending.";
             case CREADO -> "Order created.";
         };
-        try {
-            notificationClient.sendNotification(new NotificationRequest(
-                    order.getId(),
-                    order.getCustomerName(),
-                    order.getStatus().name(),
-                    statusMessage));
-        } catch (Exception ex) {
-            log.warn("Notification could not be sent for order {}: {}",
-                    order.getId(), ex.getMessage());
-        }
+        OrderNotificationEvent event = new OrderNotificationEvent(
+                order.getId(),
+                order.getCustomerName(),
+                order.getStatus().name(),
+                statusMessage,
+                order.getTotal(),
+                order.getPaidAmount(),
+                order.getRemainingBalance(),
+                Instant.now());
+        eventPublisher.publishNotification(event);
     }
 }
