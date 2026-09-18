@@ -15,6 +15,6 @@ public interface OrderClient {
     OrderSummaryResponse getOrder(@PathVariable("orderId") Long orderId);
 
     @PostMapping("/internal/orders/{orderId}/payment-confirmation")
-    void confirmPayment(@PathVariable("orderId") Long orderId,
-                        @RequestBody PaymentConfirmationRequest request);
+    OrderSummaryResponse confirmPayment(@PathVariable("orderId") Long orderId,
+                                        @RequestBody PaymentConfirmationRequest request);
 }

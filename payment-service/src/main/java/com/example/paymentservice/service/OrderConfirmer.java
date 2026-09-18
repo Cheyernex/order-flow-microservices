@@ -1,5 +1,6 @@
 package com.example.paymentservice.service;
 
+import com.example.paymentservice.dto.OrderSummaryResponse;
 import com.example.paymentservice.dto.PaymentConfirmationRequest;
 import com.example.paymentservice.feign.OrderClient;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
@@ -21,12 +22,13 @@ public class OrderConfirmer {
     }
 
     @CircuitBreaker(name = "orderService", fallbackMethod = "confirmFallback")
-    public void confirm(Long orderId, String reference, BigDecimal amount) {
-        orderClient.confirmPayment(orderId, new PaymentConfirmationRequest(reference, amount));
+    public OrderSummaryResponse confirm(Long orderId, String reference, BigDecimal amount) {
+        return orderClient.confirmPayment(orderId, new PaymentConfirmationRequest(reference, amount));
     }
 
-    public void confirmFallback(Long orderId, String reference, BigDecimal amount, Throwable throwable) {
+    public OrderSummaryResponse confirmFallback(Long orderId, String reference, BigDecimal amount, Throwable throwable) {
         log.warn("Order confirmation for order {} (reference {}, amount {}) failed: {}. "
                 + "The payment stays recorded.", orderId, reference, amount, throwable.getMessage());
+        return null;
     }
 }

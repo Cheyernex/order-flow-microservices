@@ -175,11 +175,16 @@ class PaymentServiceTest {
     void shouldSupportMultiplePartialPayments() {
         when(orderClient.getOrder(60L)).thenReturn(new OrderSummaryResponse(
                 60L, "User", new BigDecimal("8000.00"), new BigDecimal("4000.00"), new BigDecimal("4000.00"), "PAGO_PARCIAL"));
+        when(orderClient.confirmPayment(eq(60L), any(PaymentConfirmationRequest.class))).thenReturn(new OrderSummaryResponse(
+                60L, "User", new BigDecimal("8000.00"), new BigDecimal("8000.00"), BigDecimal.ZERO, "PAGADO"));
 
         PaymentResponse response = paymentService.process(new PaymentRequest(60L, new BigDecimal("4000.00")));
 
         assertThat(response.success()).isTrue();
         assertThat(response.status()).isEqualTo(PaymentStatus.APPROVED);
+        assertThat(response.paidAmount()).isEqualByComparingTo(new BigDecimal("8000.00"));
+        assertThat(response.remainingBalance()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(response.orderStatus()).isEqualTo("PAGADO");
         verify(orderClient).confirmPayment(eq(60L), argThat(req ->
                 req.reference().equals(response.reference()) && req.amount().compareTo(new BigDecimal("4000.00")) == 0));
     }

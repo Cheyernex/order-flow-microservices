@@ -154,7 +154,23 @@ curl -X POST http://localhost:8080/payments/process \
   -d '{"orderId":1,"amount":4000.00}'
 ```
 
-- `200 OK` → el pago se procesa y persiste la `reference` en `paymentdb`. Notifica a `order-service`, el cual actualiza el acumulado `paidAmount`, calcula el `remainingBalance` y cambia el estado a `PAGO_PARCIAL` o `PAGADO`.
+Ejemplo de respuesta con abono parcial:
+```json
+{
+  "status": "APPROVED",
+  "success": true,
+  "message": "Payment processed successfully",
+  "reference": "40bf2a30466805033159c29f0b749e45a1d09c7b2f6f272e201de986b6e2f926",
+  "transactionId": 9877129,
+  "orderId": 1,
+  "amount": 4000.00,
+  "paidAmount": 4000.00,
+  "remainingBalance": 3500.00,
+  "orderStatus": "PAGO_PARCIAL"
+}
+```
+
+- `200 OK` → el pago se procesa y persiste la `reference` en `paymentdb`. Notifica a `order-service`, el cual actualiza el acumulado `paidAmount`, calcula el `remainingBalance` y cambia el estado a `PAGO_PARCIAL` o `PAGADO`. La respuesta de pago incluye `remainingBalance`, `paidAmount` y `orderStatus`.
 - `400 Bad Request` → el monto a pagar excede el saldo restante (`remainingBalance`) de la orden.
 - `409 Conflict` → la orden ya se encuentra totalmente pagada (`PAGADO`).
 - `502 Bad Gateway` → el cobro fue rechazado por la pasarela (simulado ~30%): se persiste `REJECTED` con su `reference` y la orden mantiene su saldo y estado actual, lista para reintentar.

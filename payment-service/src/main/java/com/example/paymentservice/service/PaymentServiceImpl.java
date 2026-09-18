@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
@@ -99,10 +100,22 @@ public class PaymentServiceImpl implements PaymentService {
             throw new PaymentProcessingException(message, reference);
         }
 
-        orderConfirmer.confirm(request.orderId(), reference, request.amount());
+        OrderSummaryResponse updatedOrder = orderConfirmer.confirm(request.orderId(), reference, request.amount());
+
+        BigDecimal paidAmount = updatedOrder != null ? updatedOrder.paidAmount() : null;
+        BigDecimal remainingBalance = updatedOrder != null ? updatedOrder.remainingBalance() : null;
+        String orderStatus = updatedOrder != null ? updatedOrder.status() : null;
 
         Long transactionId = ThreadLocalRandom.current().nextLong(1_000_000L, 9_999_999L);
-        return PaymentResponse.approved(reference, transactionId, request.orderId(), request.amount());
+        return PaymentResponse.approved(
+                reference,
+                transactionId,
+                request.orderId(),
+                request.amount(),
+                paidAmount,
+                remainingBalance,
+                orderStatus
+        );
     }
 
     @Override

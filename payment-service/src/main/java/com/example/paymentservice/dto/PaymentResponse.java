@@ -9,12 +9,18 @@ public record PaymentResponse(
         String reference,
         Long transactionId,
         Long orderId,
-        BigDecimal amount) {
+        BigDecimal amount,
+        BigDecimal paidAmount,
+        BigDecimal remainingBalance,
+        String orderStatus) {
 
     public static PaymentResponse approved(String reference,
                                            Long transactionId,
                                            Long orderId,
-                                           BigDecimal amount) {
+                                           BigDecimal amount,
+                                           BigDecimal paidAmount,
+                                           BigDecimal remainingBalance,
+                                           String orderStatus) {
         return new PaymentResponse(
                 PaymentStatus.APPROVED,
                 true,
@@ -22,6 +28,16 @@ public record PaymentResponse(
                 reference,
                 transactionId,
                 orderId,
-                amount);
+                amount,
+                paidAmount,
+                remainingBalance,
+                orderStatus);
+    }
+
+    public static PaymentResponse approved(String reference,
+                                           Long transactionId,
+                                           Long orderId,
+                                           BigDecimal amount) {
+        return approved(reference, transactionId, orderId, amount, amount, BigDecimal.ZERO, "PAGADO");
     }
 }
