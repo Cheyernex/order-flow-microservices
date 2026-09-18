@@ -1,13 +1,26 @@
 # Maven
-target/
+**/target/
+*.jar
+*.war
 
-# IDE
+# Node & Frontend
+**/node_modules/
+**/dist/
+**/dist-ssr/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.eslintcache
+
+# IDE & Editors
 .idea/
 *.iml
 .vscode/
 *.classpath
 *.project
-.settings/
+*.settings/
 
 # OS
 .DS_Store
@@ -15,8 +28,9 @@ Thumbs.db
 
 # Logs
 *.log
+logs/
 
-# Docker
+# Docker & Secrets
 .env
 
 # Misc

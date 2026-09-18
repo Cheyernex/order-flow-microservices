@@ -2,6 +2,7 @@ package com.example.notificationservice.listener;
 
 import com.example.notificationservice.config.RabbitMQConfig;
 import com.example.notificationservice.event.ProductCreatedEvent;
+import com.example.notificationservice.service.NotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -11,6 +12,12 @@ import org.springframework.stereotype.Component;
 public class ProductNotificationListener {
 
     private static final Logger log = LoggerFactory.getLogger(ProductNotificationListener.class);
+
+    private final NotificationService notificationService;
+
+    public ProductNotificationListener(NotificationService notificationService) {
+        this.notificationService = notificationService;
+    }
 
     @RabbitListener(queues = RabbitMQConfig.PRODUCT_NOTIFICATION_QUEUE)
     public void handleProductCreatedNotification(ProductCreatedEvent event) {
@@ -22,5 +29,12 @@ public class ProductNotificationListener {
         log.info("Timestamp:      {}", event.timestamp());
         log.info("Simulated Notification (Catalog Alert/Inventory Sync) dispatched successfully.");
         log.info("===============================================================================");
+
+        notificationService.recordNotification(
+                "PRODUCT",
+                "Nuevo Producto en Catálogo: " + event.name(),
+                "Se registró el producto #" + event.id() + " con precio $" + event.price() + " y stock de " + event.stock() + " unidades.",
+                "CREADO"
+        );
     }
 }

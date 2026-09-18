@@ -59,7 +59,7 @@ flowchart TD
 ### Requisitos previos
 
 - Docker + Docker Compose (v2)
-- Puertos libres: 8080, 8081, 8082, 8083, 8084, 8761, 9411, 15672, 5672, 5433, 5434, 5435
+- Puertos libres: 8080, 8081, 8082, 8083, 8084, 8761, 9411, 15672, 5672, 3000, 3001, 9090, 5433, 5434, 5435
 
 ### Clonar y levantar
 
@@ -73,7 +73,10 @@ docker compose up --build
 
 | Componente | URL | Descripción |
 |---|---|---|
-| **API Gateway** | http://localhost:8080 | Único punto de entrada para clientes |
+| **Web UI Control Center** | http://localhost:3001 | Interfaz gráfica interactiva con campanita de notificaciones y hub de observabilidad |
+| **API Gateway** | http://localhost:8080 | Único punto de entrada para clientes REST |
+| **Grafana Dashboards** | http://localhost:3000 | Métricas JVM, RPS y latencia en vivo (`admin`/`admin`) |
+| **Prometheus Metrics** | http://localhost:9090 | Servidor de recolección y consultas PromQL |
 | **Zipkin Tracing UI** | http://localhost:9411 | Trazabilidad distribuida y análisis de latencia |
 | **RabbitMQ Management** | http://localhost:15672 | Panel de colas y exchanges (`guest`/`guest`) |
 | **Eureka Dashboard** | http://localhost:8761 | Registro y estado de microservicios |
