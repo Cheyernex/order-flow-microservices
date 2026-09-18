@@ -10,7 +10,6 @@ import {
   deleteUserApi,
   UserAccount,
   KEYCLOAK_BASE,
-  KEYCLOAK_REALM,
 } from 'src/api/microservices';
 
 export interface User {
@@ -57,7 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('orderflow_jwt_token'));
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
-  const keycloakUrl = `${KEYCLOAK_BASE}/admin/${KEYCLOAK_REALM}/console`;
+  const keycloakUrl = `${KEYCLOAK_BASE}/admin`;
 
   const mapAccountToUser = (acc: UserAccount): User => ({
     id: acc.id,

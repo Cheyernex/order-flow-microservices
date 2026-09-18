@@ -21,37 +21,103 @@ El proyecto simula un flujo de pedidos real con estándares de arquitectura ente
 
 ```mermaid
 flowchart TD
-    Client[Cliente HTTP] -->|:8080| Gateway[API Gateway :8080]
+    subgraph Clients [Capa de Clientes]
+        WebUI["Frontend Web UI (:3001)"]
+        Postman["Clientes HTTP / REST"]
+    end
 
-    Gateway -->|lb://eureka-server| Eureka[Eureka Server :8761]
-    Gateway -->|lb://catalog-service| Catalog[Catalog Service :8081]
-    Gateway -->|lb://order-service| Order[Order Service :8082]
-    Gateway -->|lb://payment-service| Payment[Payment Service :8083]
-    Gateway -->|lb://notification-service| Notif[Notification Service :8084]
+    subgraph SecurityLayer [Identidad & Seguridad IAM]
+        Keycloak["Keycloak IdP (:8088)\n(OIDC / OAuth2 / PKCE)"]
+    end
 
-    Eureka <-->|Service Discovery| Catalog
-    Eureka <-->|Service Discovery| Order
-    Eureka <-->|Service Discovery| Payment
-    Eureka <-->|Service Discovery| Notif
+    subgraph GatewayLayer [Edge & Enrutamiento]
+        Gateway["API Gateway (:8080)\nSpring Cloud Gateway"]
+    end
 
+    subgraph CoreServices [Microservicios de Negocio]
+        Auth["Auth Service (:8085)\nSpring Security & BCrypt"]
+        Catalog["Catalog Service (:8081)\nGestión de Productos"]
+        Order["Order Service (:8082)\nPedidos & Circuit Breaker"]
+        Payment["Payment Service (:8083)\nPasarela & Hash SHA-256"]
+        Notif["Notification Service (:8084)\nConsumidor Asíncrono"]
+    end
+
+    subgraph Discovery [Service Discovery]
+        Eureka["Eureka Server (:8761)\nNetflix Eureka Registry"]
+    end
+
+    subgraph EventBroker [Broker de Mensajería]
+        RabbitMQ[("RabbitMQ (:5672 / :15672)\nExchanges & Queues AMQP")]
+    end
+
+    subgraph Observability [Observabilidad & Métricas]
+        Zipkin["Zipkin Tracing (:9411)\nDistributed Tracing"]
+        Prometheus["Prometheus (:9090)\nTime-Series Metrics"]
+        Grafana["Grafana (:3000)\nLive Dashboards"]
+    end
+
+    subgraph Databases [Bases de Datos Segregadas - Database per Service]
+        PGK[("PostgreSQL keycloak :5437\nkeycloakdb")]
+        PGA[("PostgreSQL auth :5436\nauthdb")]
+        PGC[("PostgreSQL catalog :5433\ncatalogdb")]
+        PGO[("PostgreSQL order :5434\norderdb")]
+        PGP[("PostgreSQL payment :5435\npaymentdb")]
+    end
+
+    %% Flujos de Autenticación
+    WebUI -->|1. Auth OIDC / JWT| Keycloak
+    WebUI -->|2. Request con Bearer JWT| Gateway
+    Postman -->|Request con Bearer JWT| Gateway
+
+    %% Enrutamiento Gateway
+    Gateway -->|lb://auth-service| Auth
+    Gateway -->|lb://catalog-service| Catalog
+    Gateway -->|lb://order-service| Order
+    Gateway -->|lb://payment-service| Payment
+    Gateway -->|lb://notification-service| Notif
+
+    %% Service Discovery
+    Eureka <-->|Registro & Discovery| Gateway
+    Eureka <-->|Registro & Discovery| Auth
+    Eureka <-->|Registro & Discovery| Catalog
+    Eureka <-->|Registro & Discovery| Order
+    Eureka <-->|Registro & Discovery| Payment
+    Eureka <-->|Registro & Discovery| Notif
+
+    %% Comunicación Síncrona entre Microservicios
     Order -->|Feign síncrono| Catalog
     Order -->|Feign + Circuit Breaker| Payment
-    Payment -->|Feign confirma orden + Circuit Breaker| Order
+    Payment -->|Feign confirma orden + CB| Order
 
-    Catalog -.->|Publica ProductCreatedEvent| RabbitMQ[(RabbitMQ :5672)]
-    Order -.->|Publica OrderNotificationEvent| RabbitMQ
-    Payment -.->|Publica PaymentProcessedEvent| RabbitMQ
-    RabbitMQ -.->|AMQP Listeners asíncronos| Notif
+    %% Eventos Asíncronos RabbitMQ
+    Catalog -.->|ProductCreatedEvent| RabbitMQ
+    Order -.->|OrderNotificationEvent| RabbitMQ
+    Payment -.->|PaymentProcessedEvent| RabbitMQ
+    RabbitMQ -.->|AMQP Listeners| Notif
 
-    Gateway -.->|Spans de Trazabilidad| Zipkin[Zipkin UI :9411]
-    Order -.->|Spans de Trazabilidad| Zipkin
-    Catalog -.->|Spans de Trazabilidad| Zipkin
-    Payment -.->|Spans de Trazabilidad| Zipkin
-    Notif -.->|Spans de Trazabilidad| Zipkin
+    %% Persistencia Segregada
+    Keycloak --> PGK
+    Auth --> PGA
+    Catalog --> PGC
+    Order --> PGO
+    Payment --> PGP
 
-    Catalog -->|JPA| PGC[(PostgreSQL catalog)]
-    Order -->|JPA| PGO[(PostgreSQL order)]
-    Payment -->|JPA| PGP[(PostgreSQL payment)]
+    %% Telemetría y Observabilidad
+    Gateway -.->|Trazas| Zipkin
+    Auth -.->|Trazas| Zipkin
+    Catalog -.->|Trazas| Zipkin
+    Order -.->|Trazas| Zipkin
+    Payment -.->|Trazas| Zipkin
+    Notif -.->|Trazas| Zipkin
+    
+    Gateway -.->|Métricas| Prometheus
+    Auth -.->|Métricas| Prometheus
+    Catalog -.->|Métricas| Prometheus
+    Order -.->|Métricas| Prometheus
+    Payment -.->|Métricas| Prometheus
+    Notif -.->|Métricas| Prometheus
+    Keycloak -.->|Métricas| Prometheus
+    Prometheus -->|Data Source| Grafana
 ```
 
 ## Instrucciones de ejecución
@@ -59,7 +125,7 @@ flowchart TD
 ### Requisitos previos
 
 - Docker + Docker Compose (v2)
-- Puertos libres: 8080, 8081, 8082, 8083, 8084, 8761, 9411, 15672, 5672, 3000, 3001, 9090, 5433, 5434, 5435
+- Puertos libres: 8080 (Gateway), 8081 (Catalog), 8082 (Order), 8083 (Payment), 8084 (Notification), 8085 (Auth), 8088 (Keycloak), 8761 (Eureka), 9411 (Zipkin), 15672/5672 (RabbitMQ), 3000 (Grafana), 3001 (Web UI), 9090 (Prometheus), 5433-5437 (PostgreSQL DBs)
 
 ### Clonar y levantar
 

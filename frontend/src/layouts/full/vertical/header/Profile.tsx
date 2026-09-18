@@ -80,7 +80,7 @@ const Profile = () => {
               className="px-3 py-2 rounded-lg flex items-center gap-3 hover:bg-muted/60 cursor-pointer transition-colors"
             >
               <a
-                href="http://localhost:8088/admin/orderflow-realm/console"
+                href="http://localhost:8088/admin"
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-3 w-full"
@@ -90,7 +90,7 @@ const Profile = () => {
                 </div>
                 <div className="flex-1">
                   <h5 className="text-xs font-bold text-foreground">Keycloak IAM Console</h5>
-                  <span className="text-[10px] text-muted-foreground">Port 8088 / Realm ↗</span>
+                  <span className="text-[10px] text-muted-foreground">Admin Console (:8088) ↗</span>
                 </div>
               </a>
             </DropdownMenuItem>

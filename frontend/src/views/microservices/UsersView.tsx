@@ -152,7 +152,7 @@ const UsersView = () => {
             asChild
             className="border-amber-500/30 text-amber-500 hover:bg-amber-500/10 hover:text-amber-400 text-xs shadow-sm"
           >
-            <a href="http://localhost:8088/admin/orderflow-realm/console" target="_blank" rel="noreferrer">
+            <a href="http://localhost:8088/admin" target="_blank" rel="noreferrer">
               <Icon icon="solar:shield-keyhole-bold-duotone" className="mr-1.5" width={16} /> Keycloak IAM ↗
             </a>
           </Button>
