@@ -1,4 +1,4 @@
-import { useState, useEffect, useEffectEvent } from 'react';
+import { useState, useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import Messages from './Messages';
 import FullLogo from '../../shared/logo/FullLogo';
@@ -16,19 +16,19 @@ const Header = () => {
   const [mobileMenu, setMobileMenu] = useState('');
   const [isOpen, setIsOpen] = useState(false);
 
-  const handleScroll = useEffectEvent(() => {
+  const handleScroll = () => {
     if (window.scrollY > 50) {
       setIsSticky(true);
     } else {
       setIsSticky(false);
     }
-  });
+  };
 
-  const handleResize = useEffectEvent(() => {
+  const handleResize = () => {
     if (window.innerWidth > 1023) {
       setIsOpen(false);
     }
-  });
+  };
 
   useEffect(() => {
     // Use stable callbacks inside the effect
@@ -74,9 +74,9 @@ const Header = () => {
 
           <div className="hidden xl:flex items-center gap-3">
             <Search />
-            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs font-medium">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>Gateway :8080 Conectado</span>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs font-medium whitespace-nowrap shrink-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+              <span className="whitespace-nowrap">Gateway :8080 Conectado</span>
             </div>
           </div>
 

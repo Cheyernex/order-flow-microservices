@@ -56,6 +56,16 @@ const OrdersView = () => {
     try {
       const res = await processPayment({ orderId: selectedOrder.id, amount: amt });
       setReceipt(res);
+      setSelectedOrder((prev) =>
+        prev
+          ? {
+              ...prev,
+              paidAmount: (prev.paidAmount || 0) + amt,
+              remainingBalance: res.remainingBalance ?? Math.max(0, prev.remainingBalance - amt),
+              status: res.orderStatus || (res.remainingBalance === 0 ? 'PAGADO' : 'PAGO_PARCIAL'),
+            }
+          : null
+      );
       loadOrders();
     } catch (err: any) {
       setPayError(err.message);
@@ -205,68 +215,71 @@ const OrdersView = () => {
                 </div>
               </div>
 
-              {/* Quick Chips */}
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="flex-1 text-xs"
-                  onClick={() => setPayAmount(selectedOrder.remainingBalance.toFixed(2))}
-                >
-                  Pagar 100%
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="flex-1 text-xs"
-                  onClick={() => setPayAmount((selectedOrder.remainingBalance / 2).toFixed(2))}
-                >
-                  Abonar 50%
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="flex-1 text-xs"
-                  onClick={() => setPayAmount('')}
-                >
-                  Monto Libre
-                </Button>
-              </div>
-
               {payError && (
                 <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-500 text-xs">
                   {payError}
                 </div>
               )}
 
-              {/* Formulario */}
+              {/* Formulario y Quick Chips */}
               {!receipt && (
-                <form onSubmit={handlePay} className="space-y-4">
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground block mb-1">Monto a Pagar ($ USD)</label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      max={selectedOrder.remainingBalance.toFixed(2)}
-                      value={payAmount}
-                      onChange={(e) => setPayAmount(e.target.value)}
-                      placeholder="Ingresa monto..."
-                      required
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <Button type="button" variant="secondary" onClick={() => setSelectedOrder(null)}>
-                      Cancelar
+                <>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 text-xs"
+                      onClick={() => setPayAmount(selectedOrder.remainingBalance.toFixed(2))}
+                    >
+                      {selectedOrder.paidAmount > 0
+                        ? `Liquidar Saldo ($${selectedOrder.remainingBalance.toFixed(2)})`
+                        : `Pagar 100% ($${selectedOrder.total.toFixed(2)})`}
                     </Button>
-                    <Button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white" disabled={paying}>
-                      {paying ? 'Procesando...' : 'Confirmar Pago'}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 text-xs"
+                      onClick={() => setPayAmount((selectedOrder.remainingBalance / 2).toFixed(2))}
+                    >
+                      Abonar 50% ($${(selectedOrder.remainingBalance / 2).toFixed(2)})
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 text-xs"
+                      onClick={() => setPayAmount('')}
+                    >
+                      Monto Libre
                     </Button>
                   </div>
-                </form>
+
+                  <form onSubmit={handlePay} className="space-y-4">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground block mb-1">Monto a Pagar ($ USD)</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        max={selectedOrder.remainingBalance.toFixed(2)}
+                        value={payAmount}
+                        onChange={(e) => setPayAmount(e.target.value)}
+                        placeholder="Ingresa monto..."
+                        required
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button type="button" variant="secondary" onClick={() => setSelectedOrder(null)}>
+                        Cancelar
+                      </Button>
+                      <Button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white" disabled={paying}>
+                        {paying ? 'Procesando...' : 'Confirmar Pago'}
+                      </Button>
+                    </div>
+                  </form>
+                </>
               )}
 
               {/* Recibo de Confirmación */}

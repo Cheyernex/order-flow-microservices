@@ -39,6 +39,15 @@ const DashboardView = () => {
   const paidOrdersCount = orders.filter((o) => o.status === 'PAGADO').length;
   const partialOrdersCount = orders.filter((o) => o.status === 'PAGO_PARCIAL').length;
 
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 space-y-4">
+        <Icon icon="solar:spinner-line-duotone" className="animate-spin text-primary" width={48} />
+        <p className="text-sm text-muted-foreground font-medium">Cargando estado de microservicios...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header Banner */}
@@ -48,7 +57,7 @@ const DashboardView = () => {
             Order Flow <span className="text-primary">Microservices</span>
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Plataforma Integral de E-Commerce, Pagos Criptográficos y Observabilidad
+            Plataforma Integral de E-Commerce, Pagos Criptográficos y Observabilidad · {products.length} productos en catálogo
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -59,7 +68,7 @@ const DashboardView = () => {
           </Button>
           <Button asChild variant="outline">
             <Link to="/catalog">
-              <Icon icon="solar:box-minimalistic-bold" className="mr-2" /> + Producto
+              <Icon icon="solar:box-minimalistic-bold" className="mr-2" /> + Producto ({products.length})
             </Link>
           </Button>
         </div>

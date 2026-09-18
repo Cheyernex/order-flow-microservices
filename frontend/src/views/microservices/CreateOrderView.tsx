@@ -160,7 +160,7 @@ const CreateOrderView = () => {
                 <span className="text-xl font-bold text-primary">${estimatedTotal.toFixed(2)}</span>
               </div>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                ⚡ Al emitir, <code>order-service</code> valida catálogo y solicita cobro a <code>payment-service</code>. Si el cobro falla, la orden se guarda como <code>PAGO_PENDIENTE</code>.
+                ⚡ Al emitir, <code>order-service</code> valida inventario y registra el pedido en estado <code>PAGO_PENDIENTE</code>. Luego podrás gestionar abonos parciales o liquidación total desde el módulo de Pedidos.
               </p>
             </div>
 

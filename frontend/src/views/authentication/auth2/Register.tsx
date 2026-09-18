@@ -1,37 +1,31 @@
-import { Link } from "react-router";
-import CardBox from "src/components/shared/CardBox";
-
-import AuthRegister from "../authforms/AuthRegister";
-import SocialButtons from "../authforms/SocialButtons";
-
-import FullLogo from "src/layouts/full/shared/logo/FullLogo";
-
-
+import { Link } from 'react-router';
+import CardBox from 'src/components/shared/CardBox';
+import AuthRegister from '../authforms/AuthRegister';
+import FullLogo from 'src/layouts/full/shared/logo/FullLogo';
 
 const Register = () => {
   return (
-    <>
-      <div className="relative overflow-hidden h-screen bg-lightprimary dark:bg-darkprimary">
-        <div className="flex h-full justify-center items-center px-4">
-          <CardBox className="md:w-[450px] w-full border-none">
-            <div className="mx-auto mb-6">
-              <FullLogo />
-            </div>
-            <SocialButtons title="or sign up with" />
-            <AuthRegister />
-            <div className="flex gap-2 text-base text-ld font-medium mt-6 items-center justify-start">
-              <p>Already have an Account?</p>
-              <Link
-                to={"/auth/auth2/login"}
-                className="text-primary text-sm font-medium"
-              >
-                Sign in
-              </Link>
-            </div>
-          </CardBox>
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-background to-muted/30">
+      <CardBox className="max-w-md w-full p-8 rounded-2xl border border-border/80 shadow-2xl bg-card">
+        <div className="flex justify-center mb-6">
+          <FullLogo />
         </div>
-      </div>
-    </>
+
+        <div className="text-center mb-6">
+          <h2 className="text-xl font-bold text-foreground">Crear Nueva Cuenta</h2>
+          <p className="text-xs text-muted-foreground mt-1">Regístrate para interactuar con los microservicios</p>
+        </div>
+
+        <AuthRegister />
+
+        <div className="flex gap-1.5 text-xs text-muted-foreground mt-6 items-center justify-center">
+          <span>¿Ya tienes una cuenta?</span>
+          <Link to="/auth/login" className="text-primary font-bold hover:underline">
+            Inicia sesión
+          </Link>
+        </div>
+      </CardBox>
+    </div>
   );
 };
 

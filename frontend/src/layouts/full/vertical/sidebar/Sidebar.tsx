@@ -1,10 +1,8 @@
 import SidebarContent from './sidebaritems';
 import SimpleBar from 'simplebar-react';
 import { Icon } from '@iconify/react';
-import rocket from 'src/assets/images/backgrounds/rocket.png';
 import FullLogo from '../../shared/logo/FullLogo';
 import { Link, useLocation } from 'react-router';
-import { Button } from 'src/components/ui/button';
 import { useTheme } from 'src/components/provider/theme-provider';
 import { AMLogo, AMMenu, AMMenuItem, AMSidebar, AMSubmenu } from 'tailwind-sidebar';
 import 'tailwind-sidebar/styles.css';
@@ -73,9 +71,8 @@ const renderSidebarItems = (
       : `mt-0.5 text-sidebar-foreground dark:text-sidebar-foreground`;
 
     return (
-      <div onClick={onClose}>
+      <div onClick={onClose} key={item.id || item.title || item.name}>
         <AMMenuItem
-          key={item.id}
           icon={iconElement}
           isSelected={isSelected}
           link={item.url || undefined}
@@ -121,7 +118,6 @@ const SidebarLayout = ({ onClose }: { onClose?: () => void }) => {
       </div>
 
       {/* Sidebar items */}
-
       <SimpleBar className="h-[calc(100vh-100px)]">
         <div className="px-6">
           {SidebarContent.map((section, index) => (
@@ -136,23 +132,6 @@ const SidebarLayout = ({ onClose }: { onClose?: () => void }) => {
               )}
             </div>
           ))}
-
-          {/* Promo Section */}
-          <div className="mt-9 overflow-hidden">
-            <div className="flex w-full bg-lightprimary rounded-lg p-6">
-              <div className="lg:w-1/2 w-full">
-                <h5 className="text-base text-sidebar-foreground">Haven't Account?</h5>
-                <Button className="whitespace-nowrap mt-2 text-[13px]">
-                  <a href="https://tailwind-admin.com/pricing" target="_blank" rel="noopener noreferrer">
-                    Get Pro
-                  </a>
-                </Button>
-              </div>
-              <div className="lg:w-1/2 w-full -mt-4 ml-[26px] scale-[1.2] shrink-0">
-                <img src={rocket} alt="rocket" />
-              </div>
-            </div>
-          </div>
         </div>
       </SimpleBar>
     </AMSidebar>

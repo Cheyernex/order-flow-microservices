@@ -70,6 +70,13 @@ const SidebarContent: MenuItem[] = [
         url: '/payments',
         isPro: false,
       },
+      {
+        name: 'Gestión de Usuarios',
+        icon: 'solar:users-group-rounded-bold-duotone',
+        id: uniqueId(),
+        url: '/users',
+        isPro: false,
+      },
     ],
   },
   {

@@ -73,22 +73,12 @@ public class OrderServiceImpl implements OrderService {
 
         Order order = new Order(request.customerName(), items);
         order.setTotal(total);
+        order.setPaidAmount(BigDecimal.ZERO);
+        order.markPendingPayment();
         orderRepository.save(order);
 
-        PaymentResponse payment = paymentProcessor.process(
-                new PaymentRequest(order.getId(), order.getTotal()));
-
-        if (payment.success()) {
-            order.markPaid();
-            order.setPaidAmount(total);
-            order.setPaymentReference(payment.reference());
-        } else {
-            order.markPendingPayment();
-            order.setPaidAmount(BigDecimal.ZERO);
-            log.warn("Order {} will be left as PAGO_PENDIENTE: {}",
-                    order.getId(), payment.message());
-        }
-        orderRepository.save(order);
+        log.info("Order {} created for customer {} with total ${}. Status: PAGO_PENDIENTE.",
+                order.getId(), order.getCustomerName(), total);
 
         notifyCustomer(order);
         return OrderResponse.from(order);
