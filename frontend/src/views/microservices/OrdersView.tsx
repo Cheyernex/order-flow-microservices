@@ -189,10 +189,10 @@ const OrdersView = () => {
 
       {/* Modal de Pago / Abono */}
       <Dialog open={selectedOrder !== null} onOpenChange={(open) => !open && setSelectedOrder(null)}>
-        <DialogContent className="sm:max-w-md bg-card border-border">
+        <DialogContent className="sm:max-w-lg bg-card border-border p-6">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-foreground">
-              <Icon icon="solar:card-recive-bold-duotone" className="text-emerald-500" />
+            <DialogTitle className="flex items-center gap-2 text-foreground text-base font-bold">
+              <Icon icon="solar:card-recive-bold-duotone" className="text-emerald-500" width={22} />
               Procesar Pago / Abono Parcial
             </DialogTitle>
           </DialogHeader>
@@ -201,62 +201,73 @@ const OrdersView = () => {
             <div className="space-y-4 pt-2">
               {/* Resumen Financiero */}
               <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-muted/40 border border-border/50 text-xs text-center">
-                <div>
+                <div className="p-1">
                   <span className="text-muted-foreground block text-[10px]">Total Orden</span>
-                  <strong className="text-foreground">${selectedOrder.total.toFixed(2)}</strong>
+                  <strong className="text-foreground font-mono text-xs">${selectedOrder.total.toFixed(2)}</strong>
                 </div>
-                <div>
+                <div className="p-1 border-x border-border/40">
                   <span className="text-muted-foreground block text-[10px]">Abonado</span>
-                  <strong className="text-primary">${(selectedOrder.paidAmount || 0).toFixed(2)}</strong>
+                  <strong className="text-primary font-mono text-xs">${(selectedOrder.paidAmount || 0).toFixed(2)}</strong>
                 </div>
-                <div>
+                <div className="p-1">
                   <span className="text-muted-foreground block text-[10px]">Saldo Pendiente</span>
-                  <strong className="text-red-400">${selectedOrder.remainingBalance.toFixed(2)}</strong>
+                  <strong className="text-red-400 font-mono text-xs">${selectedOrder.remainingBalance.toFixed(2)}</strong>
                 </div>
               </div>
 
               {payError && (
-                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-500 text-xs">
-                  {payError}
+                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-500 text-xs flex items-center gap-2">
+                  <Icon icon="solar:danger-triangle-bold" width={16} />
+                  <span>{payError}</span>
                 </div>
               )}
 
               {/* Formulario y Quick Chips */}
               {!receipt && (
                 <>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 text-xs"
-                      onClick={() => setPayAmount(selectedOrder.remainingBalance.toFixed(2))}
-                    >
-                      {selectedOrder.paidAmount > 0
-                        ? `Liquidar Saldo ($${selectedOrder.remainingBalance.toFixed(2)})`
-                        : `Pagar 100% ($${selectedOrder.total.toFixed(2)})`}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 text-xs"
-                      onClick={() => setPayAmount((selectedOrder.remainingBalance / 2).toFixed(2))}
-                    >
-                      Abonar 50% ($${(selectedOrder.remainingBalance / 2).toFixed(2)})
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 text-xs"
-                      onClick={() => setPayAmount('')}
-                    >
-                      Monto Libre
-                    </Button>
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-medium text-muted-foreground">Opciones Rápidas:</span>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-auto py-2 px-2 flex flex-col items-center justify-center text-center transition-all hover:border-emerald-500 hover:bg-emerald-500/10"
+                        onClick={() => setPayAmount(selectedOrder.remainingBalance.toFixed(2))}
+                      >
+                        <span className="text-[11px] font-semibold text-foreground">
+                          {selectedOrder.paidAmount > 0 ? 'Liquidar Todo' : 'Pagar 100%'}
+                        </span>
+                        <span className="text-[11px] text-emerald-400 font-mono font-bold">
+                          ${selectedOrder.remainingBalance.toFixed(2)}
+                        </span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-auto py-2 px-2 flex flex-col items-center justify-center text-center transition-all hover:border-primary hover:bg-primary/10"
+                        onClick={() => setPayAmount((selectedOrder.remainingBalance / 2).toFixed(2))}
+                      >
+                        <span className="text-[11px] font-semibold text-foreground">Abonar 50%</span>
+                        <span className="text-[11px] text-primary font-mono font-bold">
+                          ${(selectedOrder.remainingBalance / 2).toFixed(2)}
+                        </span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-auto py-2 px-2 flex flex-col items-center justify-center text-center transition-all hover:border-border hover:bg-muted/50"
+                        onClick={() => setPayAmount('')}
+                      >
+                        <span className="text-[11px] font-semibold text-foreground">Monto Libre</span>
+                        <span className="text-[10px] text-muted-foreground">Manual</span>
+                      </Button>
+                    </div>
                   </div>
 
-                  <form onSubmit={handlePay} className="space-y-4">
+                  <form onSubmit={handlePay} className="space-y-4 pt-1">
                     <div>
                       <label className="text-xs font-medium text-muted-foreground block mb-1">Monto a Pagar ($ USD)</label>
                       <Input
@@ -268,13 +279,14 @@ const OrdersView = () => {
                         onChange={(e) => setPayAmount(e.target.value)}
                         placeholder="Ingresa monto..."
                         required
+                        className="font-mono text-sm"
                       />
                     </div>
-                    <div className="flex justify-end gap-2">
+                    <div className="flex justify-end gap-2 pt-2">
                       <Button type="button" variant="secondary" onClick={() => setSelectedOrder(null)}>
                         Cancelar
                       </Button>
-                      <Button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white" disabled={paying}>
+                      <Button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-600/20" disabled={paying}>
                         {paying ? 'Procesando...' : 'Confirmar Pago'}
                       </Button>
                     </div>

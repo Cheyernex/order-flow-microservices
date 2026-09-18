@@ -51,6 +51,7 @@ const tools = [
 ];
 
 const swaggerDocs = [
+  { name: 'Auth & Users Service OpenAPI', url: 'http://localhost:8085/swagger-ui/index.html', port: ':8085' },
   { name: 'Catalog Service OpenAPI', url: 'http://localhost:8081/swagger-ui/index.html', port: ':8081' },
   { name: 'Order Service OpenAPI', url: 'http://localhost:8082/swagger-ui/index.html', port: ':8082' },
   { name: 'Payment Service OpenAPI', url: 'http://localhost:8083/swagger-ui/index.html', port: ':8083' },

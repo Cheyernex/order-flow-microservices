@@ -57,6 +57,25 @@ services:
     networks:
       - order-system
 
+  postgres-auth:
+    image: postgres:16-alpine
+    container_name: postgres-auth
+    environment:
+      POSTGRES_DB: authdb
+      POSTGRES_USER: auth_user
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:-auth_pass}
+    volumes:
+      - pg-auth-data:/var/lib/postgresql/data
+    ports:
+      - "5436:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auth_user -d authdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - order-system
+
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: rabbitmq
@@ -250,6 +269,35 @@ services:
     networks:
       - order-system
 
+  auth-service:
+    build:
+      context: ./auth-service
+    container_name: auth-service
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-auth:5432/authdb
+      SPRING_DATASOURCE_USERNAME: auth_user
+      SPRING_DATASOURCE_PASSWORD: ${AUTH_DB_PASSWORD:-auth_pass}
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      postgres-auth:
+        condition: service_healthy
+      zipkin:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8085/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    ports:
+      - "8085:8085"
+    networks:
+      - order-system
+
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
@@ -306,6 +354,7 @@ volumes:
   pg-catalog-data:
   pg-order-data:
   pg-payment-data:
+  pg-auth-data:
   grafana-data:
 
 networks:

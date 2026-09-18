@@ -122,3 +122,113 @@ export async function fetchNotifications(): Promise<NotificationItem[]> {
   if (!res.ok) return [];
   return res.json();
 }
+
+// ================= Auth & User Management API =================
+
+export interface UserAccount {
+  id: number;
+  username: string;
+  fullName: string;
+  email: string;
+  department?: string;
+  role: 'ADMIN' | 'OPERATOR' | 'DEVELOPER' | 'MANAGER';
+  active: boolean;
+  createdAt: string;
+}
+
+export interface AuthLoginResponse {
+  token: string;
+  tokenType: string;
+  user: UserAccount;
+}
+
+export async function loginApi(credentials: { username: string; password: string }): Promise<AuthLoginResponse> {
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(credentials),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.message || data.error || 'Error al iniciar sesión');
+  }
+  return data;
+}
+
+export async function registerApi(user: {
+  username: string;
+  password: string;
+  fullName: string;
+  email: string;
+  department?: string;
+  role?: string;
+}): Promise<UserAccount> {
+  const res = await fetch(`${API_BASE}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(user),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.message || data.error || 'Error al registrar usuario');
+  }
+  return data;
+}
+
+export async function fetchUsersApi(): Promise<UserAccount[]> {
+  const res = await fetch(`${API_BASE}/auth/users`);
+  if (!res.ok) throw new Error('Error al obtener lista de usuarios');
+  return res.json();
+}
+
+export async function createUserApi(user: {
+  username: string;
+  password: string;
+  fullName: string;
+  email: string;
+  department?: string;
+  role?: string;
+}): Promise<UserAccount> {
+  const res = await fetch(`${API_BASE}/auth/users`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(user),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.message || data.error || 'Error al crear usuario');
+  }
+  return data;
+}
+
+export async function updateUserApi(
+  username: string,
+  user: {
+    fullName: string;
+    email: string;
+    department?: string;
+    role?: string;
+    active?: boolean;
+    password?: string;
+  }
+): Promise<UserAccount> {
+  const res = await fetch(`${API_BASE}/auth/users/${username}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(user),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.message || data.error || 'Error al actualizar usuario');
+  }
+  return data;
+}
+
+export async function deleteUserApi(username: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/auth/users/${username}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    throw new Error('Error al eliminar usuario');
+  }
+}

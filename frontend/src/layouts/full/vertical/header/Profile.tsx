@@ -41,7 +41,7 @@ const Profile = () => {
             <img src={profileimg} alt="user" className="w-10 h-10 rounded-full border border-primary/40" />
             <div className="flex-1 min-w-0">
               <h4 className="text-sm font-bold text-foreground truncate">{currentUser?.name || 'Cheyernex Manzanillo'}</h4>
-              <p className="text-[11px] text-muted-foreground truncate">{currentUser?.email || 'cmanzanillo@dominicana.com'}</p>
+              <p className="text-[11px] text-muted-foreground truncate">{currentUser?.email || 'cheyernex@gmail.com'}</p>
               <Badge variant="secondary" className="text-[10px] mt-1 bg-primary/10 text-primary border-primary/20">
                 {currentUser?.role || 'ADMIN'}
               </Badge>

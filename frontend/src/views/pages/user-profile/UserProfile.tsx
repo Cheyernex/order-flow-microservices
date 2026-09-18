@@ -23,14 +23,14 @@ const UserProfile = () => {
     ];
 
     const [personal, setPersonal] = useState({
-        firstName: "Mathew",
-        lastName: "Anderson",
-        email: "mathew.anderson@gmail.com",
-        phone: "(347) 528-1947",
-        position: "Team Leader",
+        firstName: "Cheyernex",
+        lastName: "Manzanillo",
+        email: "cheyernex@gmail.com",
+        phone: "(829) 000-0000",
+        position: "Software Engineer & DevOps",
         facebook: "#!",
         twitter: "#!",
-        github: "#!",
+        github: "https://github.com/Cheyernex",
         dribbble: "#!"
     });
 

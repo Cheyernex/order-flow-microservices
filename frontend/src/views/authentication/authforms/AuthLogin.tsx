@@ -14,14 +14,14 @@ const AuthLogin = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password) return;
 
     setLoading(true);
     setError(null);
 
-    const res = login(username, password);
+    const res = await login(username, password);
     setLoading(false);
 
     if (res.success) {

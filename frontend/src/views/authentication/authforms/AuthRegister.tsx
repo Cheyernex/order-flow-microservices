@@ -17,14 +17,14 @@ const AuthRegister = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !username.trim() || !email.trim() || !password) return;
 
     setLoading(true);
     setError(null);
 
-    const res = register({
+    const res = await register({
       name: name.trim(),
       username: username.trim(),
       email: email.trim(),
@@ -70,7 +70,7 @@ const AuthRegister = () => {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="cmanzanillo"
+              placeholder="cheyernex"
               required
             />
           </div>
@@ -96,7 +96,7 @@ const AuthRegister = () => {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="cmanzanillo@dominicana.com"
+            placeholder="cheyernex@gmail.com"
             required
           />
         </div>

@@ -1,82 +1,67 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { loginApi, registerApi, fetchUsersApi, createUserApi, updateUserApi, deleteUserApi, UserAccount } from 'src/api/microservices';
 
 export interface User {
+  id?: number;
   username: string;
   name: string;
   email: string;
-  role: 'ADMIN' | 'OPERATOR' | 'DEVELOPER';
-  password?: string;
-  createdAt: string;
+  department?: string;
+  role: 'ADMIN' | 'OPERATOR' | 'DEVELOPER' | 'MANAGER';
+  active?: boolean;
+  createdAt?: string;
 }
 
 interface AuthContextType {
   currentUser: User | null;
   users: User[];
-  login: (username: string, password: string) => { success: boolean; error?: string };
-  register: (user: Omit<User, 'createdAt'>) => { success: boolean; error?: string };
+  token: string | null;
+  loading: boolean;
+  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  register: (user: { username: string; password: string; name: string; email: string; department?: string; role?: string }) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  deleteUser: (username: string) => void;
-  addUser: (user: Omit<User, 'createdAt'>) => { success: boolean; error?: string };
+  deleteUser: (username: string) => Promise<{ success: boolean; error?: string }>;
+  addUser: (user: { username: string; password: string; name: string; email: string; department?: string; role?: string }) => Promise<{ success: boolean; error?: string }>;
+  updateUser: (username: string, user: { name: string; email: string; department?: string; role?: string; active?: boolean; password?: string }) => Promise<{ success: boolean; error?: string }>;
+  refreshUsers: () => Promise<void>;
 }
-
-const INITIAL_USERS: User[] = [
-  {
-    username: 'admin',
-    name: 'Cheyernex Manzanillo',
-    email: 'cmanzanillo@dominicana.com',
-    role: 'ADMIN',
-    password: 'admin',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    username: 'operator',
-    name: 'Operador Logístico',
-    email: 'operador@orderflow.local',
-    role: 'OPERATOR',
-    password: 'operator',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    username: 'developer',
-    name: 'DevOps Engineer',
-    email: 'devops@orderflow.local',
-    role: 'DEVELOPER',
-    password: 'dev',
-    createdAt: new Date().toISOString(),
-  },
-];
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [users, setUsers] = useState<User[]>(() => {
-    const saved = localStorage.getItem('orderflow_users');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return INITIAL_USERS;
-      }
-    }
-    return INITIAL_USERS;
-  });
-
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('orderflow_current_user');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return null;
-      }
-    }
-    // Default to admin for seamless experience if not set
-    return INITIAL_USERS[0];
+    return saved ? JSON.parse(saved) : {
+      username: 'admin',
+      name: 'Cheyernex Manzanillo',
+      email: 'cheyernex@gmail.com',
+      role: 'ADMIN',
+    };
   });
 
-  useEffect(() => {
-    localStorage.setItem('orderflow_users', JSON.stringify(users));
-  }, [users]);
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('orderflow_jwt_token'));
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+
+  const mapAccountToUser = (acc: UserAccount): User => ({
+    id: acc.id,
+    username: acc.username,
+    name: acc.fullName,
+    email: acc.email,
+    department: acc.department,
+    role: acc.role,
+    active: acc.active,
+    createdAt: acc.createdAt,
+  });
+
+  const refreshUsers = useCallback(async () => {
+    try {
+      const data = await fetchUsersApi();
+      setUsers(data.map(mapAccountToUser));
+    } catch {
+      // Fallback
+    }
+  }, []);
 
   useEffect(() => {
     if (currentUser) {
@@ -86,65 +71,151 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [currentUser]);
 
-  const login = (username: string, password: string) => {
-    const trimmedUser = username.trim().toLowerCase();
-    const found = users.find((u) => u.username.toLowerCase() === trimmedUser);
-    if (!found) {
-      return { success: false, error: 'Usuario no encontrado.' };
+  useEffect(() => {
+    if (token) {
+      localStorage.setItem('orderflow_jwt_token', token);
+    } else {
+      localStorage.removeItem('orderflow_jwt_token');
     }
-    if (found.password && found.password !== password) {
-      return { success: false, error: 'Contraseña incorrecta.' };
+  }, [token]);
+
+  useEffect(() => {
+    refreshUsers();
+  }, [refreshUsers]);
+
+  const login = async (username: string, password: string) => {
+    try {
+      setLoading(true);
+      const res = await loginApi({ username, password });
+      const user = mapAccountToUser(res.user);
+      setCurrentUser(user);
+      setToken(res.token);
+      await refreshUsers();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Error al iniciar sesión' };
+    } finally {
+      setLoading(false);
     }
-    const safeUser = { ...found };
-    delete safeUser.password;
-    setCurrentUser(safeUser);
-    return { success: true };
   };
 
-  const register = (user: Omit<User, 'createdAt'>) => {
-    const trimmedUser = user.username.trim().toLowerCase();
-    if (users.some((u) => u.username.toLowerCase() === trimmedUser)) {
-      return { success: false, error: 'El nombre de usuario ya está en uso.' };
+  const register = async (userData: {
+    username: string;
+    password: string;
+    name: string;
+    email: string;
+    department?: string;
+    role?: string;
+  }) => {
+    try {
+      setLoading(true);
+      const res = await registerApi({
+        username: userData.username,
+        password: userData.password,
+        fullName: userData.name,
+        email: userData.email,
+        department: userData.department,
+        role: userData.role,
+      });
+      const user = mapAccountToUser(res);
+      setCurrentUser(user);
+      await refreshUsers();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Error al registrar usuario' };
+    } finally {
+      setLoading(false);
     }
-    const newUser: User = {
-      ...user,
-      username: trimmedUser,
-      createdAt: new Date().toISOString(),
-    };
-    setUsers((prev) => [...prev, newUser]);
-    const safeUser = { ...newUser };
-    delete safeUser.password;
-    setCurrentUser(safeUser);
-    return { success: true };
   };
 
-  const addUser = (user: Omit<User, 'createdAt'>) => {
-    const trimmedUser = user.username.trim().toLowerCase();
-    if (users.some((u) => u.username.toLowerCase() === trimmedUser)) {
-      return { success: false, error: 'El nombre de usuario ya está en uso.' };
+  const addUser = async (userData: {
+    username: string;
+    password: string;
+    name: string;
+    email: string;
+    department?: string;
+    role?: string;
+  }) => {
+    try {
+      await createUserApi({
+        username: userData.username,
+        password: userData.password,
+        fullName: userData.name,
+        email: userData.email,
+        department: userData.department,
+        role: userData.role,
+      });
+      await refreshUsers();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Error al crear usuario' };
     }
-    const newUser: User = {
-      ...user,
-      username: trimmedUser,
-      createdAt: new Date().toISOString(),
-    };
-    setUsers((prev) => [...prev, newUser]);
-    return { success: true };
   };
 
-  const deleteUser = (username: string) => {
+  const updateUser = async (
+    username: string,
+    userData: {
+      name: string;
+      email: string;
+      department?: string;
+      role?: string;
+      active?: boolean;
+      password?: string;
+    }
+  ) => {
+    try {
+      const updated = await updateUserApi(username, {
+        fullName: userData.name,
+        email: userData.email,
+        department: userData.department,
+        role: userData.role,
+        active: userData.active,
+        password: userData.password,
+      });
+      if (currentUser?.username === username) {
+        setCurrentUser(mapAccountToUser(updated));
+      }
+      await refreshUsers();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Error al actualizar usuario' };
+    }
+  };
+
+  const deleteUser = async (username: string) => {
     if (currentUser?.username === username) {
-      return; // Cannot delete self
+      return { success: false, error: 'No puedes eliminar tu propia cuenta activa.' };
     }
-    setUsers((prev) => prev.filter((u) => u.username !== username));
+    try {
+      await deleteUserApi(username);
+      await refreshUsers();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Error al eliminar usuario' };
+    }
   };
 
   const logout = () => {
     setCurrentUser(null);
+    setToken(null);
   };
 
   return (
-    <AuthContext.Provider value={{ currentUser, users, login, register, logout, deleteUser, addUser }}>
+    <AuthContext.Provider
+      value={{
+        currentUser,
+        users,
+        token,
+        loading,
+        login,
+        register,
+        logout,
+        deleteUser,
+        addUser,
+        updateUser,
+        refreshUsers,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
