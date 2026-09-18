@@ -142,6 +142,58 @@ export interface AuthLoginResponse {
   user: UserAccount;
 }
 
+export const KEYCLOAK_BASE = import.meta.env.VITE_KEYCLOAK_URL || 'http://localhost:8088';
+export const KEYCLOAK_REALM = 'orderflow-realm';
+export const KEYCLOAK_CLIENT_ID = 'orderflow-frontend';
+
+export interface KeycloakTokenResponse {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  refresh_expires_in: number;
+  token_type: string;
+  id_token?: string;
+}
+
+export function parseJwtPayload(token: string): any {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch {
+    return null;
+  }
+}
+
+export async function loginKeycloakApi(credentials: { username: string; password: string }): Promise<KeycloakTokenResponse> {
+  const params = new URLSearchParams();
+  params.append('client_id', KEYCLOAK_CLIENT_ID);
+  params.append('grant_type', 'password');
+  params.append('username', credentials.username);
+  params.append('password', credentials.password);
+  params.append('scope', 'openid profile email');
+
+  const res = await fetch(`${KEYCLOAK_BASE}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: params.toString(),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error_description || data.error || 'Credenciales inválidas en Keycloak');
+  }
+  return data;
+}
+
 export async function loginApi(credentials: { username: string; password: string }): Promise<AuthLoginResponse> {
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: 'POST',

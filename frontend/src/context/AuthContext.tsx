@@ -1,5 +1,17 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { loginApi, registerApi, fetchUsersApi, createUserApi, updateUserApi, deleteUserApi, UserAccount } from 'src/api/microservices';
+import {
+  loginApi,
+  loginKeycloakApi,
+  parseJwtPayload,
+  registerApi,
+  fetchUsersApi,
+  createUserApi,
+  updateUserApi,
+  deleteUserApi,
+  UserAccount,
+  KEYCLOAK_BASE,
+  KEYCLOAK_REALM,
+} from 'src/api/microservices';
 
 export interface User {
   id?: number;
@@ -10,6 +22,7 @@ export interface User {
   role: 'ADMIN' | 'OPERATOR' | 'DEVELOPER' | 'MANAGER';
   active?: boolean;
   createdAt?: string;
+  authProvider?: 'KEYCLOAK' | 'DATABASE';
 }
 
 interface AuthContextType {
@@ -17,6 +30,7 @@ interface AuthContextType {
   users: User[];
   token: string | null;
   loading: boolean;
+  keycloakUrl: string;
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (user: { username: string; password: string; name: string; email: string; department?: string; role?: string }) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
@@ -36,12 +50,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       name: 'Cheyernex Manzanillo',
       email: 'cheyernex@gmail.com',
       role: 'ADMIN',
+      authProvider: 'KEYCLOAK',
     };
   });
 
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('orderflow_jwt_token'));
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  const keycloakUrl = `${KEYCLOAK_BASE}/admin/${KEYCLOAK_REALM}/console`;
 
   const mapAccountToUser = (acc: UserAccount): User => ({
     id: acc.id,
@@ -52,6 +68,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     role: acc.role,
     active: acc.active,
     createdAt: acc.createdAt,
+    authProvider: 'DATABASE',
   });
 
   const refreshUsers = useCallback(async () => {
@@ -86,8 +103,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (username: string, password: string) => {
     try {
       setLoading(true);
+
+      // 1. Intentar autenticación con Keycloak IdP
+      try {
+        const kcRes = await loginKeycloakApi({ username, password });
+        const claims = parseJwtPayload(kcRes.access_token);
+        if (claims) {
+          const roles = claims.realm_access?.roles || [];
+          let detectedRole: 'ADMIN' | 'OPERATOR' | 'DEVELOPER' | 'MANAGER' = 'OPERATOR';
+          if (roles.includes('ADMIN')) detectedRole = 'ADMIN';
+          else if (roles.includes('DEVELOPER')) detectedRole = 'DEVELOPER';
+          else if (roles.includes('MANAGER')) detectedRole = 'MANAGER';
+
+          const kcUser: User = {
+            username: claims.preferred_username || username,
+            name: claims.name || (claims.given_name ? `${claims.given_name} ${claims.family_name || ''}`.trim() : 'Cheyernex Manzanillo'),
+            email: claims.email || 'cheyernex@gmail.com',
+            department: (claims.department && claims.department[0]) || 'Tecnología / DevOps',
+            role: detectedRole,
+            active: true,
+            authProvider: 'KEYCLOAK',
+          };
+
+          setCurrentUser(kcUser);
+          setToken(kcRes.access_token);
+          await refreshUsers();
+          return { success: true };
+        }
+      } catch (kcErr: any) {
+        console.warn('Keycloak auth attempted, trying internal auth fallback:', kcErr.message);
+      }
+
+      // 2. Fallback a auth-service (Spring Security & PostgreSQL)
       const res = await loginApi({ username, password });
       const user = mapAccountToUser(res.user);
+      user.authProvider = 'DATABASE';
       setCurrentUser(user);
       setToken(res.token);
       await refreshUsers();
@@ -207,6 +257,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         users,
         token,
         loading,
+        keycloakUrl,
         login,
         register,
         logout,

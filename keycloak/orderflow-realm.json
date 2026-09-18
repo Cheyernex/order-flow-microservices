@@ -1,0 +1,95 @@
+{
+  "realm": "orderflow-realm",
+  "displayName": "OrderFlow Microservices IAM",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "ADMIN",
+        "description": "Administrador del sistema con acceso total"
+      },
+      {
+        "name": "OPERATOR",
+        "description": "Operador de órdenes y logística"
+      },
+      {
+        "name": "DEVELOPER",
+        "description": "Ingeniero DevOps y observabilidad"
+      },
+      {
+        "name": "MANAGER",
+        "description": "Gerente de operaciones y finanzas"
+      }
+    ]
+  },
+  "groups": [],
+  "defaultRoles": [
+    "OPERATOR"
+  ],
+  "clients": [
+    {
+      "clientId": "orderflow-frontend",
+      "name": "OrderFlow Frontend SPA",
+      "description": "Cliente público para la aplicación React / Vite",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true,
+      "redirectUris": [
+        "http://localhost:3001/*",
+        "http://localhost:5173/*",
+        "http://localhost:8080/*",
+        "*"
+      ],
+      "webOrigins": [
+        "*"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
+      }
+    },
+    {
+      "clientId": "orderflow-backend",
+      "name": "OrderFlow Backend Microservices",
+      "description": "Resource Server para microservicios y API Gateway",
+      "enabled": true,
+      "bearerOnly": true,
+      "fullScopeAllowed": true
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Cheyernex",
+      "lastName": "Manzanillo",
+      "email": "cheyernex@gmail.com",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "ADMIN"
+      ],
+      "attributes": {
+        "department": [
+          "Tecnología / DevOps"
+        ]
+      }
+    }
+  ]
+}

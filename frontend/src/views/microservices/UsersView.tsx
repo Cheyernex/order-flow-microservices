@@ -140,13 +140,22 @@ const UsersView = () => {
           <h1 className="text-2xl font-bold text-foreground">Gestión de Usuarios</h1>
           <p className="text-sm text-muted-foreground">Administra cuentas, perfiles, roles y accesos al sistema OrderFlow</p>
         </div>
-        <div className="flex items-center gap-3 w-full sm:w-auto">
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
           <Input
             placeholder="Buscar por usuario, nombre, rol..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full sm:w-64 text-xs"
+            className="w-full sm:w-56 text-xs"
           />
+          <Button
+            variant="outline"
+            asChild
+            className="border-amber-500/30 text-amber-500 hover:bg-amber-500/10 hover:text-amber-400 text-xs shadow-sm"
+          >
+            <a href="http://localhost:8088/admin/orderflow-realm/console" target="_blank" rel="noreferrer">
+              <Icon icon="solar:shield-keyhole-bold-duotone" className="mr-1.5" width={16} /> Keycloak IAM ↗
+            </a>
+          </Button>
           <Button onClick={() => setIsCreateModalOpen(true)} className="shadow-lg shadow-primary/25 text-xs">
             <Icon icon="solar:user-plus-bold" className="mr-1.5" /> + Nuevo Usuario
           </Button>
@@ -280,12 +289,12 @@ const UsersView = () => {
                 <select
                   value={createRole}
                   onChange={(e) => setCreateRole(e.target.value as any)}
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full h-9 rounded-md border border-input bg-card text-foreground px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary [&>option]:bg-slate-900 [&>option]:text-slate-100"
                 >
-                  <option value="ADMIN">ADMIN</option>
-                  <option value="OPERATOR">OPERATOR</option>
-                  <option value="DEVELOPER">DEVELOPER</option>
-                  <option value="MANAGER">MANAGER</option>
+                  <option value="ADMIN" className="bg-slate-900 text-slate-100 py-1.5">ADMIN</option>
+                  <option value="OPERATOR" className="bg-slate-900 text-slate-100 py-1.5">OPERATOR</option>
+                  <option value="DEVELOPER" className="bg-slate-900 text-slate-100 py-1.5">DEVELOPER</option>
+                  <option value="MANAGER" className="bg-slate-900 text-slate-100 py-1.5">MANAGER</option>
                 </select>
               </div>
             </div>
@@ -366,12 +375,12 @@ const UsersView = () => {
                 <select
                   value={editRole}
                   onChange={(e) => setEditRole(e.target.value as any)}
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full h-9 rounded-md border border-input bg-card text-foreground px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary [&>option]:bg-slate-900 [&>option]:text-slate-100"
                 >
-                  <option value="ADMIN">ADMIN</option>
-                  <option value="OPERATOR">OPERATOR</option>
-                  <option value="DEVELOPER">DEVELOPER</option>
-                  <option value="MANAGER">MANAGER</option>
+                  <option value="ADMIN" className="bg-slate-900 text-slate-100 py-1.5">ADMIN</option>
+                  <option value="OPERATOR" className="bg-slate-900 text-slate-100 py-1.5">OPERATOR</option>
+                  <option value="DEVELOPER" className="bg-slate-900 text-slate-100 py-1.5">DEVELOPER</option>
+                  <option value="MANAGER" className="bg-slate-900 text-slate-100 py-1.5">MANAGER</option>
                 </select>
               </div>
               <div>
@@ -379,10 +388,10 @@ const UsersView = () => {
                 <select
                   value={editActive ? 'true' : 'false'}
                   onChange={(e) => setEditActive(e.target.value === 'true')}
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full h-9 rounded-md border border-input bg-card text-foreground px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary [&>option]:bg-slate-900 [&>option]:text-slate-100"
                 >
-                  <option value="true">Activo</option>
-                  <option value="false">Inactivo</option>
+                  <option value="true" className="bg-slate-900 text-slate-100 py-1.5">Activo</option>
+                  <option value="false" className="bg-slate-900 text-slate-100 py-1.5">Inactivo</option>
                 </select>
               </div>
             </div>

@@ -76,6 +76,25 @@ services:
     networks:
       - order-system
 
+  postgres-keycloak:
+    image: postgres:16-alpine
+    container_name: postgres-keycloak
+    environment:
+      POSTGRES_DB: keycloakdb
+      POSTGRES_USER: keycloak_user
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak_pass}
+    volumes:
+      - pg-keycloak-data:/var/lib/postgresql/data
+    ports:
+      - "5437:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak_user -d keycloakdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - order-system
+
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: rabbitmq
@@ -298,6 +317,35 @@ services:
     networks:
       - order-system
 
+  keycloak:
+    image: keycloak/keycloak:24.0.5
+    container_name: keycloak
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres-keycloak:5432/keycloakdb
+      KC_DB_USERNAME: keycloak_user
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak_pass}
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+    command: start-dev --import-realm
+    volumes:
+      - ./keycloak/orderflow-realm.json:/opt/keycloak/data/import/orderflow-realm.json:ro
+    ports:
+      - "8088:8080"
+    depends_on:
+      postgres-keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 25
+      start_period: 35s
+    networks:
+      - order-system
+
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
@@ -355,6 +403,7 @@ volumes:
   pg-order-data:
   pg-payment-data:
   pg-auth-data:
+  pg-keycloak-data:
   grafana-data:
 
 networks:

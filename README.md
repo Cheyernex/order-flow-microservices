@@ -75,6 +75,9 @@ docker compose up --build
 |---|---|---|
 | **Web UI Control Center** | http://localhost:3001 | Interfaz gráfica interactiva con campanita de notificaciones y hub de observabilidad |
 | **API Gateway** | http://localhost:8080 | Único punto de entrada para clientes REST |
+| **Keycloak IAM (IdP)** | http://localhost:8088 | Servidor de Identidad OIDC/OAuth2 (`admin`/`admin`) |
+| **Keycloak Console** | http://localhost:8088/admin | Consola de administración de Realm y Usuarios |
+| **Auth Service** | http://localhost:8085/swagger-ui/index.html | Swagger UI Microservicio de Autenticación & Usuarios |
 | **Grafana Dashboards** | http://localhost:3000 | Métricas JVM, RPS y latencia en vivo (`admin`/`admin`) |
 | **Prometheus Metrics** | http://localhost:9090 | Servidor de recolección y consultas PromQL |
 | **Zipkin Tracing UI** | http://localhost:9411 | Trazabilidad distribuida y análisis de latencia |
@@ -223,7 +226,21 @@ Las notificaciones hacia los clientes están completamente desacopladas del cicl
 - **RabbitMQ Dashboard**:
   Ingresa a **http://localhost:15672** (Usuario: `guest`, Contraseña: `guest`):
   - En la pestaña **Exchanges** verás `order.exchange`.
-  - En la pestaña **Queues** verás `order.notification.queue` con la tasa de mensajes entrantes y consumidos en tiempo real.
+## Autenticación e Identidad: Keycloak IdP & Spring Security
+
+El ecosistema integra **Keycloak 24** como **Identity Provider (IdP) OIDC / OAuth2** empresarial junto a un microservicio complementario **`auth-service`** con **Spring Security & PostgreSQL**:
+
+- **Keycloak IdP Container (`:8088`)**:
+  - **Realm**: `orderflow-realm` (autoprovisionado vía `orderflow-realm.json`).
+  - **Clientes**: `orderflow-frontend` (SPA pública con PKCE y Direct Access Grants) y `orderflow-backend` (Resource Server).
+  - **Roles**: `ADMIN`, `OPERATOR`, `DEVELOPER`, `MANAGER`.
+  - **Usuario Administrador inicial**: `admin` / `admin` (`cheyernex@gmail.com`).
+  - **Consola de Administración Keycloak**: Accede en **http://localhost:8088/admin** para gestionar tokens, sesiones activas, mappers de claims y políticas MFA.
+- **Microservicio `auth-service` (`:8085`)**:
+  - Servicio autónomo en Java 21 / Spring Boot con hashing **BCrypt**, tokens JWT firmados (**JJWT**) y persistencia segregada en `postgres-auth` (`authdb`).
+  - Provee API REST de gestión y auditoría de usuarios y empleados (`/auth/users`).
+- **Frontend Dual Authentication**:
+  - El frontend se autentica directamente con los endpoints OpenID Connect de Keycloak y cuenta con fallback transparente al microservicio `auth-service`.
 
 ## Probar el Circuit Breaker
 

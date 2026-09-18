@@ -42,17 +42,22 @@ const Profile = () => {
             <div className="flex-1 min-w-0">
               <h4 className="text-sm font-bold text-foreground truncate">{currentUser?.name || 'Cheyernex Manzanillo'}</h4>
               <p className="text-[11px] text-muted-foreground truncate">{currentUser?.email || 'cheyernex@gmail.com'}</p>
-              <Badge variant="secondary" className="text-[10px] mt-1 bg-primary/10 text-primary border-primary/20">
-                {currentUser?.role || 'ADMIN'}
-              </Badge>
+              <div className="flex items-center gap-1.5 mt-1">
+                <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary border-primary/20">
+                  {currentUser?.role || 'ADMIN'}
+                </Badge>
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 font-mono font-semibold">
+                  OIDC / Keycloak
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Única Opción: GitHub */}
-          <div>
+          {/* Opciones */}
+          <div className="space-y-1">
             <DropdownMenuItem
               asChild
-              className="px-3 py-2.5 rounded-lg flex items-center gap-3 hover:bg-muted/60 cursor-pointer transition-colors"
+              className="px-3 py-2 rounded-lg flex items-center gap-3 hover:bg-muted/60 cursor-pointer transition-colors"
             >
               <a
                 href="https://github.com/Cheyernex"
@@ -60,12 +65,32 @@ const Profile = () => {
                 rel="noreferrer"
                 className="flex items-center gap-3 w-full"
               >
-                <div className="p-2 rounded-lg bg-muted text-foreground flex items-center justify-center">
-                  <Icon icon="akar-icons:github-fill" width={20} />
+                <div className="p-1.5 rounded-lg bg-muted text-foreground flex items-center justify-center">
+                  <Icon icon="akar-icons:github-fill" width={18} />
                 </div>
                 <div className="flex-1">
                   <h5 className="text-xs font-bold text-foreground">GitHub Profile</h5>
-                  <span className="text-[11px] text-muted-foreground">@Cheyernex ↗</span>
+                  <span className="text-[10px] text-muted-foreground">@Cheyernex ↗</span>
+                </div>
+              </a>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              asChild
+              className="px-3 py-2 rounded-lg flex items-center gap-3 hover:bg-muted/60 cursor-pointer transition-colors"
+            >
+              <a
+                href="http://localhost:8088/admin/orderflow-realm/console"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-3 w-full"
+              >
+                <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                  <Icon icon="solar:shield-keyhole-bold-duotone" width={18} />
+                </div>
+                <div className="flex-1">
+                  <h5 className="text-xs font-bold text-foreground">Keycloak IAM Console</h5>
+                  <span className="text-[10px] text-muted-foreground">Port 8088 / Realm ↗</span>
                 </div>
               </a>
             </DropdownMenuItem>

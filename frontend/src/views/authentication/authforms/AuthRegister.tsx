@@ -80,11 +80,11 @@ const AuthRegister = () => {
               id="reg-role"
               value={role}
               onChange={(e) => setRole(e.target.value as any)}
-              className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full h-9 rounded-md border border-input bg-card text-foreground px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-primary [&>option]:bg-slate-900 [&>option]:text-slate-100"
             >
-              <option value="ADMIN">ADMIN</option>
-              <option value="OPERATOR">OPERATOR</option>
-              <option value="DEVELOPER">DEVELOPER</option>
+              <option value="ADMIN" className="bg-slate-900 text-slate-100 py-1.5">ADMIN</option>
+              <option value="OPERATOR" className="bg-slate-900 text-slate-100 py-1.5">OPERATOR</option>
+              <option value="DEVELOPER" className="bg-slate-900 text-slate-100 py-1.5">DEVELOPER</option>
             </select>
           </div>
         </div>
